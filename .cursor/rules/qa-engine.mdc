@@ -1,0 +1,35 @@
+---
+description: QA Agent engine — always-on constraints for manual QA by business requirements (applies when working under qa-agent/)
+globs: qa-agent/**
+alwaysApply: false
+---
+
+# QA Agent — hard rules (always apply)
+
+- **Prefer the Playwright CLI/specs for everything possible; the Playwright MCP is the LAST RESORT.** Use the MCP only when a live, visible browser is genuinely required — exploratory / the mandatory two-pass manual QA on an unknown page — and no CLI/spec path works. All repeatable regression/acceptance → `playwright test … --reporter=dot` (headless, far cheaper, and covers what the MCP can't, e.g. dnd). Never drive repeatable checks action-by-action through the MCP; if you repeat MCP steps, convert them to a spec. See skill `token-efficient-ops`.
+- Two-pass execution on every case (real input + automation); trust Pass 1 on disagreement.
+- Spec-driven chain holds: **REQ → SC → TC → evidence** (run `check_coverage.py`; traceability matrix has no empty cells without a reason).
+- A bug is CONFIRMED only with evidence (screenshot of the error state, or a captured 5xx) — never from body-text matching "500".
+- A "consistency" fix is PASS only when the displayed VALUE matches the **canonical source** (detail page / DB / API), not merely that two views agree.
+- Every FAIL gets a triage verdict; `works-as-specified` is not a bug — quote the requirement.
+- Every confirmed defect gets a regression test referencing its bug id.
+- **Always attach an E2E recording as validation evidence — for EVERY ticket moved to Done (FE *and* BE/infra), and on every confirmed bug.** The clip must walk the **customer-side** end-to-end steps that prove the fix/feature works now (real user journey in the live browser, ≤10MB, Jira-only). For BE/API changes, record the closest customer-observable flow that exercises the change end-to-end (the user journey that depends on the backend path, or the API response viewed in the browser/devtools) and state in the caption which customer outcome it validates. No recording ⇒ not Done.
+- **Pure-CI / pipeline-only tickets need NO evidence/recording** (no app or customer-facing surface — e.g. deploy gating, pipeline steps). Verify the change at the config/logic level (a quick note in the Jira comment), then PASS→Done. No screen recording and no pipeline-run log required.
+- Scope drift (tested behaviour with no backing requirement) is flagged, never silently accepted.
+- **Per-project isolation**: a project uses ONLY its own `projects/<slug>/.secrets/*` — never another project's settings (ambient env is ignored).
+- **Jira gating**: if `scripts/jira_status.sh <slug>` is `inactive` (no/placeholder `.secrets/jira.env`), do NO Jira work — run Jira-free, never error.
+- **Server ownership**: only stop a server the agent itself started (pidfile); never touch a user/external server.
+- **Test the intended branch, not a stale dir**: if a project sets `SERVER_GIT_SYNC`, always `server_ctl <slug> sync` (isolated worktree at `origin/<branch>`) before starting, and serve from that worktree on its dedicated port. Never mutate the developer's working dir; never assume the checked-out dir is current.
+- **L5 unattended mode: act without asking when the rules are clear.** Auto-accept and auto-file/reopen run unattended — do NOT ask the user for Done/filing approval. The only escape is a `needs-human` verdict (see below).
+  - **Auto-accept (Validate/Testing → Done)** ONLY when the machine DoD is met: (1) retest two-pass PASS against the canonical source; (2) **STG buildId gate** — `scripts/stg_buildid.sh <slug> <expected-merge-sha>` MATCHES the merge commit from the dev hand-off comment (skip only for projects with no STG configured); (3) mandatory E2E recording attached (pure-CI/pipeline tickets exempt); (4) verdict is not `needs-human`. If the buildId MISMATCHES → do NOT Done; move to In Progress with expected-vs-actual buildId. 
+  - **Auto-file CONFIRMED bugs** unattended (evidence + `confirmed-defect` verdict), deduped via JQL first; NEVER auto-file `works-as-specified`/`cannot-reproduce`/`needs-human`.
+  - **Auto-reopen on regression**: a Done ticket that FAILS retest → `scripts/reopen_regression.py` moves it to In Progress with a REGRESSION comment + evidence.
+  - **`needs-human`**: ambiguous requirement, policy uncertainty, or destructive/irreversible action → do NOT auto-close/auto-act; leave the ticket and surface it to the user.
+- Never commit secrets — they live in gitignored `projects/<slug>/.secrets/`.
+- Report is not "done" until full acceptance coverage exists — smoke passing ≠ accepted.
+
+Procedural how-to lives in skills: `qa-runs`, `qa-phases`, `qa-loop`, `qa-server`, `qa-jira`
+(under `qa-agent/.cursor/skills/`). The portable spine is `qa-agent/AGENTS.md`.
+
+After changing any engine script, rule, skill, or template, run `bash tests/run_tests.sh`
+(offline self-tests) and keep it green before relying on the change.

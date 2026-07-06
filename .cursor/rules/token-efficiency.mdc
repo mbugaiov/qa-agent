@@ -1,0 +1,19 @@
+---
+description: QA Agent — always minimize token/context usage for every operation (Jira, Bitbucket, git, testing, shell, browser). Prefer terse, filtered output; never dump raw payloads into context.
+globs: qa-agent/**
+alwaysApply: false
+---
+
+# Token-efficiency — hard rules (always apply)
+
+Goal: get the same result with the **least text pulled into context**. Detailed patterns: skill `token-efficient-ops`.
+
+- **Filter at the source, not in your head.** Ask the API/CLI/tool for only the fields you need and print only what you'll use. Never pull a full object/JSON/page into context to eyeball one value.
+- **Jira** = REST via the `scripts/*` wrappers; pass `fields=` (e.g. `status,summary`) and print **one line per issue/action** (`KEY | status | summary`, `comment 201 | ->Done 204`). Flatten ADF and slice; never dump a full issue/description/comment thread.
+- **MCP is the last resort** (it returns the most tokens). If you must use one, ALWAYS pass a `jq`/field filter + `pagelen`. Prefer a `scripts/*` REST wrapper or CLI over an unfiltered MCP call.
+- **Bitbucket/repo reads** → prefer local **git** over the Bitbucket API/MCP: `git -C <repo> …` with `--oneline`, `--name-only`, `-s`, `--format`, `git show <sha>:<file>`; bound with `head`.
+- **git/shell** = quiet + bounded: `--quiet`/`--silent`/`-q`, `-C <repo>` (not `cd`), one chained command for related checks, and cap noisy output (`| tail`, `| head`, `grep -m`). Don't re-print large files.
+- **Reading files** = targeted: use Grep/Glob and ranged reads; don't Read whole large files (or `cat` them) when a pattern or a small range answers the question.
+- **Testing/browser** = cheapest signal that proves the point: use `curl` for status/headers/health/API (no browser); use `browser_evaluate` to return **compact values** (booleans/counts/short strings), not full-page snapshots; snapshot only when you need refs. Recordings ≤10MB, local copy discarded.
+- **Reuse over re-fetch.** Don't re-query/re-read something already known this session (e.g. the merge sha, a file just read). Long command output already streams to the terminal file — don't echo it back.
+- **Batch** independent reads into a single call/command instead of many round-trips.

@@ -1,0 +1,32 @@
+# Secrets — never commit credentials (allow *.example templates)
+**/.secrets/**
+!**/.secrets/**/
+!**/.secrets/**/*.example
+**/auth.json
+**/auth.js
+*.local.yaml
+# Jira / env creds (keep *.example tracked)
+**/*.env
+!**/*.env.example
+!**/jira.env.example
+
+# Run evidence (large / transient)
+projects/*/runs/**/screenshots/
+projects/*/automation/playwright-report/
+projects/*/automation/test-results/
+
+# Generated reports and operational factory ledger
+projects/*/reports/*.docx
+projects/*/factory/runs/*.jsonl
+!projects/_template/factory/runs/.gitkeep
+
+# Automation
+**/node_modules/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# macOS
+.DS_Store

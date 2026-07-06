@@ -1,0 +1,59 @@
+# Project under test. Created from projects/_template by scripts/new_project.sh.
+# NEVER put real credentials here — reference a gitignored secrets file in .secrets/.
+
+name: "<Project Name>"
+slug: "<slug>"
+base_url: https://staging.example.com
+
+environment:
+  type: staging            # staging | production | local
+  notes: >
+    Rate limits, feature flags, environment-specific behaviour the agent must know.
+
+# App-under-test lifecycle. Connection/start details live in .secrets/server.env
+# (gitignored). The agent starts the server for testing and stops only what it started.
+server:
+  manage: false            # true = agent may autostart/autostop via scripts/server_ctl.sh
+  # .secrets/server.env holds: SERVER_URL, SERVER_CWD, SERVER_START, SERVER_READY_TIMEOUT
+
+roles:
+  - id: guest
+    description: Unauthenticated visitor
+  - id: user
+    description: Standard logged-in user
+  - id: admin
+    description: Administrator
+# All role credentials live in one gitignored file:
+credentials_file: .secrets/credentials.json   # copy from .secrets/credentials.json.example
+
+# Requirements sources for this project (one or more, situational)
+requirements:
+  - type: file            # file | chat | jira | confluence | bitbucket
+    path: requirements/requirements.md
+  # - type: bitbucket
+  #   repo: workspace/repo
+  #   query: "label = acceptance-criteria"
+
+coverage:
+  primary_flows: 100
+  secondary_flows: 80
+  edge_negative: 60
+
+report:
+  app_name: "<App>"
+  formats: [md, docx]
+
+# Jira bug filing (per-project — each company has its own site + account).
+# Connection + credentials live in .secrets/jira.env (gitignored); never here.
+jira:
+  enabled: false            # set true once .secrets/jira.env is filled (run scripts/jira_discover.py <slug>)
+  # Connection + field ids live in .secrets/jira.env (gitignored). When enabled, every
+  # ticket the agent creates/validates gets (per .secrets/jira.env):
+  #   - assignee (JIRA_ASSIGNEE_ACCOUNT_ID)
+  #   - story points (severity default S1=5/S2=3/S3=2/S4=1)
+  #   - original time estimate (severity default S1=8h/S2=4h/S3=2h/S4=1h)
+  #   - added to the active sprint (JIRA_BOARD_ID)
+  #   - filed under the epic (JIRA_EPIC_FOR_TASKS_BUGS), with evidence screenshots
+  #   - a <=10MB retest recording attached on each retest (scripts/record_and_attach.sh)
+  default_labels: [qa-agent]
+  set_priority_from_severity: false   # S1→Highest..S4→Low; off by default (many projects restrict priority)

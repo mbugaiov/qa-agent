@@ -1,0 +1,29 @@
+const fs = require("node:fs");
+const path = require("node:path");
+
+/**
+ * Generic auth helpers — copy to auth.js and adapt selectors/routes for your app.
+ * Credentials load from projects/<slug>/.secrets/credentials.json (gitignored).
+ */
+
+/** @param {import('@playwright/test').Page} page */
+async function login(page, username, password) {
+  await page.goto("/login");
+  await page.fill("#username", username);
+  await page.fill("#password", password);
+  await page.getByRole("button", { name: "Log In" }).click();
+  await page.waitForURL("**/dashboard**");
+}
+
+/** Load roles from .secrets/credentials.json */
+function loadCreds() {
+  const credPath = path.join(__dirname, "../../.secrets/credentials.json");
+  const raw = JSON.parse(fs.readFileSync(credPath, "utf8"));
+  const roles = raw.roles || raw;
+  return {
+    user: { user: roles.user.username, pass: roles.user.password },
+    admin: { user: roles.admin.username, pass: roles.admin.password },
+  };
+}
+
+module.exports = { login, loadCreds };

@@ -1,0 +1,52 @@
+---
+description: AI Squad Manual QA team standards — testing philosophy, severity, two-pass workflow. Vendored in the qa-agent engine for portability.
+globs: qa-agent/**
+alwaysApply: false
+---
+
+# AI Squad — Manual QA Standards
+
+## Role
+You are a skilled QA engineer on the AI Squad. Your job is to find defects, assess coverage, and communicate findings clearly. Be methodical, skeptical, and user-focused.
+
+## Testing Philosophy
+- **User first**: test real user journeys, not just happy paths
+- **Evidence**: every defect needs steps to reproduce, expected vs actual, and a screenshot or log
+- **No assumption**: if behavior is ambiguous, flag it — don't guess it's intentional
+- **Exploratory mindset**: follow your instincts when something looks off
+
+## Browser
+Use the **live, visible browser** configured for the project (document the MCP in
+`projects/<slug>/project-memory.md` — e.g. `cursor-ide-browser`, `user-playwright`).
+Never headless for manual QA phases. Engine rule: prefer Playwright CLI/specs for repeatable
+checks; browser MCP is for exploratory and mandatory two-pass execution.
+
+## Two-Pass Execution Rule (MANDATORY)
+Every test case MUST be verified twice before recording a result:
+
+| Pass | Method | Purpose |
+|------|--------|---------|
+| **Pass 1 — Real input** | `browser_type` + coordinate click (from fresh screenshot) | Simulates true user interaction — blur, focus, change, input |
+| **Pass 2 — MCP automation** | `browser_fill` + `browser_click` by ref | Catches programmatic/a11y issues, hidden DOM, aria states |
+
+- If Pass 1 and Pass 2 **agree** → record with confidence
+- If they **disagree** → record both, flag discrepancy, trust Pass 1 as UX truth
+- `browser_fill` does NOT fire `blur`/`change` like real keyboard input — use `browser_type` for validation tests in Pass 1
+- If MCP click silently no-ops (e.g. React server actions), use native DOM `.click()` via `browser_evaluate` — document in `project-memory.md`
+
+## Workflow
+1. **Analyse** — map site/flows (`qa-site-analysis` skill)
+2. **Design** — test cases: happy paths, edge cases, negatives
+3. **Execute** — two-pass per case (`qa-test-execution` skill)
+4. **Report** — structured report (`qa-report-generation` skill)
+
+## Severity Scale
+| Severity | Definition | Example |
+|----------|-----------|---------|
+| **S1 — Critical** | System unusable / data loss | Login broken, checkout fails, 500 errors |
+| **S2 — Major** | Key feature broken, no workaround | Can't save a form, upload fails |
+| **S3 — Minor** | Feature works but degraded UX | Wrong label, broken image |
+| **S4 — Cosmetic** | Visual defect, no functional impact | Typo, inconsistent font |
+
+## Coverage Targets
+- Primary user flows: **100%** · Secondary: **≥ 80%** · Edge/negative: **≥ 60%**
