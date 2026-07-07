@@ -31,7 +31,10 @@ pip install python-docx requests
 bash tests/run_tests.sh    # must exit 0
 ```
 
-Complete **`HOST_SETUP.md`** (global QA skills + browser MCP) before running engagements.
+Before your first **`git push`**, complete GitHub CLI login in **`HOST_SETUP.md`** (GitHub access)
+and run `./scripts/gh_auth_check.sh` — expect `active (…)`.
+
+Complete **`HOST_SETUP.md`** (global QA skills + browser MCP + `gh`) before running engagements.
 
 ---
 
@@ -412,6 +415,9 @@ ls projects/<slug>/project.yaml
 
 # Credentials present (manual check)
 test -f projects/<slug>/.secrets/credentials.json && echo "creds ok"
+
+# GitHub push/pull (if you commit engine or project repos)
+./scripts/gh_auth_check.sh             # active — or run gh auth login (HOST_SETUP.md)
 ```
 
 ---
@@ -531,6 +537,7 @@ qa-agent/                    ← engine (public) — scripts, skills, templates
 
 **1. Host tools** (once per machine) — see **`HOST_SETUP.md`**:
 - Python + `python-docx` + `requests`
+- **`gh`** — `gh auth login` + `gh auth setup-git` (token in keyring, not in `.secrets/`)
 - Global skills: `qa-site-analysis`, `qa-test-execution`, `qa-report-generation`
 - Browser MCP in Cursor
 

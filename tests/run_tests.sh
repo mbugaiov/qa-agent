@@ -147,6 +147,11 @@ grep_ok "qa-security" ".cursor/skills/qa-loop/SKILL.md" "qa-loop references qa-s
 grep_ok "exploratory.*regression" ".cursor/skills/qa-security/SKILL.md" "qa-security scoped to exploratory+regression"
 grep_ok "Not on every tick" ".cursor/skills/qa-loop/SKILL.md" "qa-loop excludes per-tick security"
 
+echo "== 11b. GitHub CLI gate =="
+chmod +x scripts/gh_auth_check.sh 2>/dev/null || true
+OUT=$(./scripts/gh_auth_check.sh 2>&1); EC=$?
+echo "$OUT" | grep -qiE 'active|inactive' && ok "gh_auth_check prints status (exit $EC)" || no "gh_auth_check output"
+
 echo "== 12. Factory ledger (offline) =="
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=selftest-tick >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-99 verdict PASS merge_sha=abc123 >/dev/null

@@ -13,6 +13,35 @@ Some capabilities depend on **host-installed** tools and skills on each develope
 
 Document the chosen browser MCP in each project's `project-memory.md`.
 
+## GitHub access (push/pull — once per machine)
+
+QA work stays local in `.secrets/`; **GitHub credentials are host-level** via the GitHub CLI.
+The CLI stores a token in your OS keyring — **never** copy it into `projects/<slug>/.secrets/`.
+
+```bash
+brew install gh                    # or your OS package manager
+
+gh auth login -h github.com
+# → GitHub.com → HTTPS → Login with a web browser (or paste one-time code)
+
+gh auth setup-git                  # git push/pull uses gh as credential helper
+./scripts/gh_auth_check.sh         # expect: active (your-user @ github.com, …)
+```
+
+Verify:
+
+```bash
+cd qa-agent
+git pull
+git push --dry-run origin main     # no error = auth OK
+```
+
+**SSH instead of HTTPS:** run `gh auth login` with protocol **SSH**, add your SSH key to GitHub,
+and use `git@github.com:org/repo.git` remotes — still no token in the repo.
+
+If you have stale accounts in keyring (`gh auth status` shows a failed login), remove them:
+`gh auth logout -h github.com -u old-account`.
+
 ## Recommended — global QA phase skills
 
 These three skills are **orchestrated** by `AGENTS.md` / `qa-phases` but are **not vendored** in the engine repo.
@@ -38,6 +67,7 @@ read equivalent methodology from `templates/` and `.cursor/rules/qa-team.mdc`.
 |---|---|---|
 | `ffmpeg` | Retest video compression (`record_and_attach.sh`) | `brew install ffmpeg` / system package |
 | Node.js + npm | Phase-2 Playwright automation | `node` LTS + `npm install` in `projects/<slug>/automation/` |
+| **`gh` (GitHub CLI)** | `git push` / `git pull` / PRs without manual PAT files | `brew install gh` (see below) |
 | `release-testing` | Deeper acceptance techniques | External squad skill (optional) |
 | `docx-test-report` | Alternative DOCX path | External squad skill (optional; engine has `generate_docx_report.py`) |
 | `salesforce-fsl-testing` | Playwright patterns reference | `~/.cursor/skills/salesforce-fsl-testing` (optional) |
