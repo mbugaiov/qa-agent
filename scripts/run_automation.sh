@@ -5,6 +5,7 @@
 #   scripts/run_automation.sh <slug>                    # local: sync + up + test + down
 #   scripts/run_automation.sh <slug> --stg              # STG (no local server)
 #   scripts/run_automation.sh <slug> --url http://host  # explicit base URL
+#   scripts/run_automation.sh <slug> --no-server        # skip local server autostart
 #   scripts/run_automation.sh <slug> --suite all        # all specs (default)
 #   scripts/run_automation.sh <slug> --suite <file>     # single spec file under specs/
 #
@@ -36,6 +37,12 @@ done
 AUTODIR="$ROOT/projects/$SLUG/automation"
 [[ -d "$AUTODIR" ]] || { echo "No automation dir: $AUTODIR" >&2; exit 1; }
 
+PROJECT_YAML="$ROOT/projects/$SLUG/project.yaml"
+SERVER_MANAGE=0
+if [[ -f "$PROJECT_YAML" ]] && grep -A3 '^server:' "$PROJECT_YAML" | grep -q 'manage:[[:space:]]*true'; then
+  SERVER_MANAGE=1
+fi
+
 ENVF="$ROOT/projects/$SLUG/.secrets/server.env"
 if [[ -f "$ENVF" ]]; then
   # shellcheck disable=SC1090
@@ -57,7 +64,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [[ "$MANAGE_SERVER" -eq 1 && -n "${SERVER_URL:-}" && "$BASE_URL" == "$SERVER_URL" ]]; then
+if [[ "$MANAGE_SERVER" -eq 1 && "$SERVER_MANAGE" -eq 1 && -n "${SERVER_URL:-}" && "$BASE_URL" == "$SERVER_URL" ]]; then
   "$SCRIPT_DIR/server_ctl.sh" "$SLUG" sync
   if ! "$SCRIPT_DIR/server_ctl.sh" "$SLUG" status 2>&1 | grep -qi up; then
     "$SCRIPT_DIR/server_ctl.sh" "$SLUG" up || exit 1

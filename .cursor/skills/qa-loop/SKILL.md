@@ -92,8 +92,9 @@ tasks and marks the run **paused** in `run.md` / `project-memory.md`. No auto re
 
 ### Diagnostics only (shell — not the loop itself)
 
+Run from the **engine repo root** (where `scripts/` lives):
+
 ```bash
-cd qa-agent
 ./scripts/jira_status.sh <slug>
 ./scripts/stg_buildid.sh <slug> <merge-sha>
 ./scripts/server_ctl.sh <slug> status

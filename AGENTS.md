@@ -24,6 +24,7 @@ triage → report → (optional) file to Jira with evidence. One project = one s
 | What external methodology was integrated and from where | `INTEGRATIONS.md` |
 | Engine vs projects repo split, onboarding any new site | `PORTABILITY.md` |
 | Host machine setup (global skills, Python, MCP) | `HOST_SETUP.md` |
+| Project setup (Jira, creds, epic, server, start) | `SETUP.md` |
 
 ## Skills this project orchestrates
 
@@ -32,8 +33,8 @@ triage → report → (optional) file to Jira with evidence. One project = one s
 | Ingest + design | `qa-site-analysis` | `~/.cursor/skills/qa-site-analysis` |
 | Execute | `qa-test-execution` | `~/.cursor/skills/qa-test-execution` |
 | Report (md) | `qa-report-generation` | `~/.cursor/skills/qa-report-generation` |
-| Acceptance depth + techniques | `release-testing` | `AI_COPILOT_SQUAD/.squad/skills/release-testing` |
-| Report (DOCX) | `docx-test-report` | `AI_COPILOT_SQUAD/.squad/skills/docx-test-report` |
+| Acceptance depth + techniques | `release-testing` (optional, external) | install separately if available |
+| Report (DOCX) | `docx-test-report` (optional, external) | engine includes `scripts/generate_docx_report.py` |
 | Automation (phase 2) | `salesforce-fsl-testing` (Playwright patterns) | `~/.cursor/skills/salesforce-fsl-testing` |
 
 **Always read the relevant SKILL.md before the phase that uses it.** Read them, don't just reference them.

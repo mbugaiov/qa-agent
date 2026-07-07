@@ -2,7 +2,7 @@
 
 An agent-driven **manual QA** workspace: feed it **business requirements**, point it at a **live web app**, and it designs test cases, executes them in a visible browser, captures evidence, and produces a Markdown + DOCX report — instead of a human tester doing it by hand.
 
-Built as an orchestrator on top of existing QA skills (`qa-site-analysis`, `qa-test-execution`, `qa-report-generation`, `release-testing`, `docx-test-report`) **plus methodology integrated from `koldovsky/project-factory` and `openai/skills`**. It is **spec-driven**: business requirements are normalized into BDD scenarios (`SC-*`, Given/When/Then) from which test cases derive — chain `REQ → SC → TC → evidence`. Read **`AGENTS.md`** first; **`PORTABILITY.md`** explains engine vs per-project data for multi-repo setups; **`INTEGRATIONS.md`** lists external sources.
+Built as an orchestrator on top of existing QA skills (`qa-site-analysis`, `qa-test-execution`, `qa-report-generation`, `release-testing`, `docx-test-report`) **plus methodology integrated from `koldovsky/project-factory` and `openai/skills`**. It is **spec-driven**: business requirements are normalized into BDD scenarios (`SC-*`, Given/When/Then) from which test cases derive — chain `REQ → SC → TC → evidence`. Read **`SETUP.md`** to configure a project (Jira, creds, epic, server) and start your first run; **`AGENTS.md`** for the full loop; **`PORTABILITY.md`** for multi-repo layouts.
 
 ## One project = one folder · one task = one run
 
@@ -17,6 +17,8 @@ scripts/new_run.sh <slug> <type> "<task>"
 ```
 
 ## Quickstart
+
+> **Full setup guide:** **`SETUP.md`** — Jira, credentials, epic, server, loop, and pre-flight checklist.
 
 1. **Create the project** (copies the skeleton from `projects/_template/`):
 
@@ -61,6 +63,7 @@ scripts/new_run.sh <slug> <type> "<task>"
 
 | Path | Purpose |
 |---|---|
+| `SETUP.md` | **Start here** — project setup: Jira, creds, epic, server, first run |
 | `AGENTS.md` | Lean portable spine: the loop + hard rules + skill index |
 | `PORTABILITY.md` | Engine vs projects split; onboarding any new site |
 | `HOST_SETUP.md` | Host machine setup: global QA skills, Python deps, MCP |
@@ -79,7 +82,7 @@ scripts/new_run.sh <slug> <type> "<task>"
 | `scripts/record_and_attach.sh` | Record a retest flow (Playwright), compress ≤10MB, attach to the Jira ticket, delete local copy |
 | `scripts/factory_log.sh` | Append factory tick/ticket events to `projects/<slug>/factory/runs/*.jsonl` |
 | `scripts/factory_status.sh` | Offline summary of factory ledger (open tickets, last failures) |
-| `scripts/run_automation.sh` | Run project Playwright specs (`--stg`, `--url`, or local via `server.env`) |
+| `scripts/run_automation.sh` | Run project Playwright specs (`--stg`, `--url`, `--no-server`, or local via `server.env` + `server.manage`) |
 | `automation/` | Shared Playwright guide + example config (CLI + specs) |
 | `projects/_template/` | Per-project skeleton |
 | `projects/<slug>/` | One site: `project.yaml`, `project-memory.md`, `requirements/`, `specs/` (BDD SC-*), `test-cases/`, `runs/<date>-<type>-<task>/`, `reports/`, `automation/specs/`, `.secrets/` |

@@ -1,6 +1,6 @@
 ---
 description: AI Squad Manual QA team standards — testing philosophy, severity, two-pass workflow. Vendored in the qa-agent engine for portability.
-globs: qa-agent/**
+globs: "{qa-agent/**,scripts/**,projects/**,templates/**,tests/**,automation/**,.cursor/**}"
 alwaysApply: false
 ---
 

@@ -20,10 +20,13 @@ function loadCreds() {
   const credPath = path.join(__dirname, "../../.secrets/credentials.json");
   const raw = JSON.parse(fs.readFileSync(credPath, "utf8"));
   const roles = raw.roles || raw;
-  return {
-    user: { user: roles.user.username, pass: roles.user.password },
-    admin: { user: roles.admin.username, pass: roles.admin.password },
-  };
+  const out = {};
+  for (const [id, cred] of Object.entries(roles)) {
+    if (cred && cred.username) {
+      out[id] = { user: cred.username, pass: cred.password };
+    }
+  }
+  return out;
 }
 
 module.exports = { login, loadCreds };

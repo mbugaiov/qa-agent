@@ -10,6 +10,10 @@
 !**/*.env.example
 !**/jira.env.example
 
+# Nested project repos (plain clone into projects/<slug>/ — see PORTABILITY.md Option B)
+projects/*
+!projects/_template/
+
 # Run evidence (large / transient)
 projects/*/runs/**/screenshots/
 projects/*/automation/playwright-report/

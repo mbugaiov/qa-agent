@@ -1,8 +1,8 @@
 # <Project Name>
 
 Per-project QA workspace. Same pattern as every other project — see the engine root
-`../../AGENTS.md` for the workflow, `../../PORTABILITY.md` for engine vs projects split,
-and `../../templates/` for artifact shapes.
+`../../SETUP.md` for full setup (Jira, creds, epic, server), `../../AGENTS.md` for the workflow,
+`../../PORTABILITY.md` for engine vs projects split, and `../../templates/` for artifact shapes.
 
 ## Layout
 - `project.yaml` — target config (url, roles, requirement sources)

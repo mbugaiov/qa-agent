@@ -36,22 +36,42 @@ if [[ -f "$DEST/server.env.example" ]]; then
   cp "$DEST/server.env.example" "$DEST/.secrets/server.env.example"
 fi
 
-# Fill in the obvious placeholders in project.yaml
-TODAY="$(date +%Y-%m-%d)"
-if command -v sed >/dev/null 2>&1; then
-  sed -i '' \
+# Fill placeholders in scaffolded files
+subst_placeholders() {
+  local f="$1"
+  [[ -f "$f" ]] || return 0
+  if sed -i '' \
+    -e "s|<Project Name>|$NAME|g" \
+    -e "s|<slug>|$SLUG|g" \
+    -e "s|<App>|$NAME|g" \
     -e "s|name: \"<Project Name>\"|name: \"$NAME\"|" \
     -e "s|slug: \"<slug>\"|slug: \"$SLUG\"|" \
     -e "s|base_url: https://staging.example.com|base_url: $BASE_URL|" \
     -e "s|app_name: \"<App>\"|app_name: \"$NAME\"|" \
-    "$DEST/project.yaml" 2>/dev/null || \
+    -e "s|\"<slug>-qa-automation\"|\"$SLUG-qa-automation\"|" \
+    "$f" 2>/dev/null; then
+    return 0
+  fi
   sed -i \
+    -e "s|<Project Name>|$NAME|g" \
+    -e "s|<slug>|$SLUG|g" \
+    -e "s|<App>|$NAME|g" \
     -e "s|name: \"<Project Name>\"|name: \"$NAME\"|" \
     -e "s|slug: \"<slug>\"|slug: \"$SLUG\"|" \
     -e "s|base_url: https://staging.example.com|base_url: $BASE_URL|" \
     -e "s|app_name: \"<App>\"|app_name: \"$NAME\"|" \
-    "$DEST/project.yaml"
-fi
+    -e "s|\"<slug>-qa-automation\"|\"$SLUG-qa-automation\"|" \
+    "$f"
+}
+
+for f in \
+  "$DEST/project.yaml" \
+  "$DEST/project-memory.md" \
+  "$DEST/README.md" \
+  "$DEST/automation/README.md" \
+  "$DEST/automation/package.json"; do
+  subst_placeholders "$f"
+done
 
 echo "Created project: projects/$SLUG"
 echo "  - project.yaml      (name=$NAME, url=$BASE_URL)"

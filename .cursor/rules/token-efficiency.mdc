@@ -1,6 +1,6 @@
 ---
 description: QA Agent — always minimize token/context usage for every operation (Jira, Bitbucket, git, testing, shell, browser). Prefer terse, filtered output; never dump raw payloads into context.
-globs: qa-agent/**
+globs: "{qa-agent/**,scripts/**,projects/**,templates/**,tests/**,automation/**,.cursor/**}"
 alwaysApply: false
 ---
 

@@ -44,6 +44,10 @@ read equivalent methodology from `templates/` and `.cursor/rules/qa-team.mdc`.
 
 ## Per-project setup (after `new_project.sh`)
 
+See **`SETUP.md`** sections 4–8 for `project.yaml`, credentials, Jira epic, server, and `project-memory.md`.
+
+Quick copy:
+
 ```bash
 scripts/new_project.sh <slug> <base_url> "<Display Name>"
 
@@ -54,6 +58,7 @@ cp projects/<slug>/.secrets/credentials.json.example projects/<slug>/.secrets/cr
 
 # Discover Jira field ids (if Jira enabled):
 python3 scripts/jira_discover.py <slug>
+./scripts/jira_status.sh <slug>    # expect: active
 ```
 
 ## Workspace layouts
@@ -62,8 +67,9 @@ python3 scripts/jira_discover.py <slug>
 |---|---|
 | Standalone | Open `qa-agent/` as Cursor workspace |
 | Sibling app | `myapp/` + `qa-agent/` in one parent folder |
-| Submodule | `git submodule add <qa-agent-repo> qa-agent` inside app repo |
-| Symlink rules | `ln -s ../qa-agent/.cursor .cursor` in app workspace (optional) |
+| Engine in app repo | `git submodule add <qa-agent-repo> qa-agent` inside app repo |
+| Project in engine | `git submodule add <project-repo> projects/<slug>` — see **`SETUP.md` §13**, **`PORTABILITY.md`** |
+| Symlink rules (optional) | `ln -s ../qa-agent/.cursor .cursor` in app workspace |
 
 See **`PORTABILITY.md`** for engine vs per-project repo split.
 

@@ -1,6 +1,6 @@
 ---
 description: QA Agent engine — always-on constraints for manual QA by business requirements (applies when working under qa-agent/)
-globs: qa-agent/**
+globs: "{qa-agent/**,scripts/**,projects/**,templates/**,tests/**,automation/**,.cursor/**}"
 alwaysApply: false
 ---
 
