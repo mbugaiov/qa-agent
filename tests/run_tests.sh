@@ -110,7 +110,7 @@ EOF
 ./scripts/server_ctl.sh "$SLUG" sync 2>&1 | grep -qi "nothing to sync" && ok "sync no-ops when SERVER_GIT_SYNC unset" || no "sync gating"
 
 echo "== 9. Skills + rule frontmatter =="
-for s in qa-runs qa-phases qa-loop qa-server qa-jira token-efficient-ops; do
+for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security token-efficient-ops; do
   f=".cursor/skills/$s/SKILL.md"
   { grep -q "^name:" "$f" && grep -q "^description:" "$f"; } && ok "skill $s has name+description" || no "skill $s frontmatter"
 done
@@ -124,7 +124,7 @@ have PORTABILITY.md
 grep_ok "projects/<slug>" PORTABILITY.md "PORTABILITY.md is slug-generic"
 
 echo "== 10. AGENTS.md index points to real skills =="
-for s in qa-runs qa-phases qa-loop qa-server qa-jira token-efficient-ops; do
+for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security token-efficient-ops; do
   grep_ok "\`$s\`" AGENTS.md "AGENTS.md references skill $s"
 done
 
@@ -143,6 +143,9 @@ grep_ok "L5 unattended" ".cursor/rules/qa-engine.mdc" "qa-engine has L5 unattend
 grep_ok "STG buildId gate" ".cursor/rules/qa-engine.mdc" "qa-engine has STG buildId gate"
 grep_ok "Machine DoD for auto-Done" ".cursor/skills/qa-jira/SKILL.md" "qa-jira has machine DoD"
 grep_ok "auto-Done" ".cursor/skills/qa-loop/SKILL.md" "qa-loop has auto-Done path"
+grep_ok "qa-security" ".cursor/skills/qa-loop/SKILL.md" "qa-loop references qa-security"
+grep_ok "exploratory.*regression" ".cursor/skills/qa-security/SKILL.md" "qa-security scoped to exploratory+regression"
+grep_ok "Not on every tick" ".cursor/skills/qa-loop/SKILL.md" "qa-loop excludes per-tick security"
 
 echo "== 12. Factory ledger (offline) =="
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=selftest-tick >/dev/null

@@ -67,7 +67,7 @@ scripts/new_run.sh <slug> <type> "<task>"
 | `AGENTS.md` | Lean portable spine: the loop + hard rules + skill index |
 | `PORTABILITY.md` | Engine vs projects split; onboarding any new site |
 | `HOST_SETUP.md` | Host machine setup: global QA skills, Python deps, MCP |
-| `.cursor/skills/` | Procedural how-to (`qa-runs`, `qa-phases`, `qa-loop`, `qa-server`, `qa-jira`, `token-efficient-ops`) |
+| `.cursor/skills/` | Procedural how-to (`qa-runs`, `qa-phases`, `qa-loop`, `qa-server`, `qa-jira`, `qa-security`, `token-efficient-ops`) |
 | `.cursor/rules/` | Always-on constraints (`qa-engine`, `token-efficiency`, vendored `qa-team`) |
 | `tests/run_tests.sh` | Engine self-tests (offline) — verify scripts, rules, skills, isolation, gating |
 | `tests/smoke_clone.sh` | Fresh-clone smoke test — validates SETUP quickstart offline (`--local` to skip clone) |

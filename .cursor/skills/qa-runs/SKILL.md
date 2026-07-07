@@ -49,13 +49,16 @@ On rotation: (1) mark the old run **ARCHIVED** in its `run.md` header; (2) `new_
 | Type | When | Scope | Artifacts created |
 |---|---|---|---|
 | `targeted` | point test of one feature / a few REQ | subset of cases | `run.md`, `execution-log.md`, (bug-report), report |
-| `exploratory` | charter-driven, time-boxed probing | a charter, no fixed TC list | `run.md`, `exploratory-session.md`, (bug-report) |
-| `regression` | re-verify previously failed/fixed cases | prior cases + carry-over bugs | `run.md`, `execution-log.md` |
+| `exploratory` | charter-driven, time-boxed probing | a charter, no fixed TC list | `run.md`, `exploratory-session.md`, (bug-report) — **+ security slice** (skill `qa-security`) |
+| `regression` | re-verify previously failed/fixed cases | prior cases + carry-over bugs | `run.md`, `execution-log.md` — **+ security slice** (skill `qa-security`) |
 | `smoke` | quick "is it up / core flow works" | P0 happy paths only | `run.md`, `execution-log.md` |
 | `uat` | triage a batch of reported bugs | one verdict per reported bug | `run.md`, `execution-log.md`, full qa-pack |
 | `full` | release / acceptance | everything | `run.md` + full QA proof pack |
 
 `new_run.sh` seeds exactly the artifacts the type needs; the loop scales to the run's scope.
+
+**Security cycles:** skill `qa-security` runs on **`exploratory`** and **`regression`** runs — not on every
+continuous loop tick. Loop ticks = Jira retest + lightweight exploratory slice only (`qa-loop`).
 
 ## Starting a new engagement
 

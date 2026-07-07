@@ -18,8 +18,9 @@ triage → report → (optional) file to Jira with evidence. One project = one s
 | A recurring/continuous QA loop tick | `qa-loop` |
 | Starting/stopping the app under test | `qa-server` |
 | Filing/validating in Jira (+ recordings, fields, isolation) | `qa-jira` |
+| Live-app security testing (rotating slice, loop + standalone) | `qa-security` |
 | Least-token way to do any op (Jira/Bitbucket/git/testing) | `token-efficient-ops` |
-| Security testing | `templates/security-checklist.md` |
+| Security checklist categories (reference) | `templates/security-checklist.md` |
 | Always-on hard constraints | rules `.cursor/rules/qa-engine.mdc` + `token-efficiency.mdc` + `qa-team.mdc` |
 | What external methodology was integrated and from where | `INTEGRATIONS.md` |
 | Engine vs projects repo split, onboarding any new site | `PORTABILITY.md` |
@@ -58,7 +59,8 @@ triage → report → (optional) file to Jira with evidence. One project = one s
 10. Memory  → update projects/<slug>/project-memory.md (history, quirks, carry-over bugs); stop server if we started it
 ```
 
-For **recurring** loops (retest the Jira queue + fresh exploratory + security each tick), follow skill `qa-loop`.
+For **recurring** loops (retest the Jira queue + fresh exploratory each tick), follow skill `qa-loop`.
+For **security**, follow skill `qa-security` on **`exploratory`** and **`regression`** runs — not each loop tick.
 
 ## Hard rules
 

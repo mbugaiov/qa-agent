@@ -370,7 +370,8 @@ Or be specific:
 
 4. **Stop the loop:** ask the agent *"stop all loops for qa-agent"*.
 
-Each tick: retest Jira scope → fresh exploratory slice → security slice → update `run.md` + `project-memory.md`.
+Each tick: retest Jira scope → fresh exploratory slice → update `run.md` + `project-memory.md`.
+Security runs on **`exploratory`** and **`regression`** runs only (skill `qa-security`) — not each loop tick.
 
 ---
 

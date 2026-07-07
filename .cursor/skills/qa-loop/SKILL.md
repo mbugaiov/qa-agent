@@ -1,6 +1,6 @@
 ---
 name: qa-loop
-description: What every recurring/continuous QA loop tick must do — retest the Jira active scope (In Progress + Validate/Testing), fresh exploratory on uncovered areas, a rotating security slice, file new bugs, with retest-rigour and browser/server hygiene. Use when running a scheduled/looping QA cycle.
+description: What every recurring/continuous QA loop tick must do — retest the Jira active scope (In Progress + Validate/Testing), fresh exploratory on uncovered areas, file new bugs, with retest-rigour and browser/server hygiene. Security testing is NOT per tick — see skill `qa-security` (exploratory and regression runs only). Use when running a scheduled/looping QA cycle.
 ---
 
 # Continuous QA loop (what every tick must include)
@@ -27,11 +27,11 @@ A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of
    - **Regression**: a Done ticket that now FAILS → `scripts/reopen_regression.py` (auto-reopen to In Progress).
 2. **Fresh exploratory testing** — pick the next **uncovered or least-covered** area and probe it (rotate so
    coverage broadens every tick, not the same pages). Track covered areas in `run.md` so ticks don't repeat.
-3. **Security testing slice** — a rotating slice of `templates/security-checklist.md` (auth, RBAC/IDOR,
-   input/XSS/SQLi, headers, rate-limit, data exposure, debug paths). Note dev-only caveats (localhost http).
-4. **Auto-file new confirmed bugs** to Jira under the epic (dedupe via JQL first, unattended); update `run.md` (covered areas + findings).
+3. **Auto-file new confirmed bugs** to Jira under the epic (dedupe via JQL first, unattended); update `run.md` (covered areas + findings).
 
-Prioritise coverage breadth: exploratory + security should each advance to something not yet tested.
+**Not on every tick:** security testing — run only on **`exploratory`** and **`regression`** run cycles (skill `qa-security`). Loop ticks are Jira retest + lightweight exploratory slices, not security cycles.
+
+Prioritise coverage breadth: exploratory slices should advance to something not yet tested each tick.
 
 **Retest rigour:** a fix is PASS only when the *actual behaviour/value* is correct — verify against the
 **canonical source of truth**, not a weaker proxy. A "two views disagree" bug is NOT Done just because the
@@ -64,8 +64,8 @@ The recurring loop is started with the Cursor **`/loop` skill** in **Agent chat*
 | `3600` | Interval in **seconds** (3600 = 1 hour). Use `21600` for 6h, `900` for 15m, `180` for 3m, etc. |
 | `AGENT_LOOP_WAKE_<slug>qa` | Unique **sentinel** for this project's QA loop. Wakes the agent when the timer fires. |
 
-**What happens:** the agent runs **one full tick immediately** (Jira retest per `qa-jira`, exploratory,
-security slice, update `run.md` + `project-memory.md`), then arms:
+**What happens:** the agent runs **one full tick immediately** (Jira retest per `qa-jira`, exploratory
+slice, update `run.md` + `project-memory.md`), then arms:
 
 ```bash
 sleep 3600; echo 'AGENT_LOOP_WAKE_<slug>qa {"prompt":"…"}'

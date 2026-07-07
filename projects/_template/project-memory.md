@@ -33,7 +33,20 @@
 ## Coverage ledger (rotate exploratory each tick)
 - ✅ Covered: <areas already tested>
 - ⬜ Not yet / shallow: <areas to probe next>
-- 🔒 Security slices run: <headers, RBAC, XSS, rate-limit, …> — see `templates/security-checklist.md`
+
+## Security ledger (skill `qa-security` — exploratory + regression runs, not loop ticks)
+- **Next slice:** <headers | authentication | authorization | rate-limit | input-validation | data-exposure>
+- **Last run:** <date> — <category> — <PASS/FAIL/n/a>
+| Category | Status | Notes |
+|----------|--------|-------|
+| headers | ⬜ | |
+| authentication | ⬜ | |
+| authorization | ⬜ | RBAC / IDOR / write-path authz |
+| rate-limit | ⬜ | |
+| input-validation | ⬜ | XSS / SQLi / oversize payloads |
+| data-exposure | ⬜ | errors, PII, debug paths |
+
+Checklist detail: `templates/security-checklist.md`.
 
 ## Run history
 | Date | Type | Scope | Bugs | Verdict |

@@ -1,8 +1,8 @@
 # Security Checklist — <Target> — <date>
 
-> Adapted from the `release-testing` skill. Run a slice each loop tick (rotate categories);
-> confirm a finding with evidence (response/headers/screenshot) before filing. Note dev-only
-> caveats (e.g. on http://localhost some headers like HSTS/Secure-cookie are expected absent).
+> Adapted from the `release-testing` skill. **Procedure:** skill `qa-security` (how to pick, run, and record each slice).
+> Run one category per **exploratory or regression run** (rotate); confirm a finding with evidence
+> Note dev-only caveats (e.g. on http://localhost some headers like HSTS/Secure-cookie are expected absent).
 
 ## Headers (curl -I on main page + an API route)
 - [ ] Strict-Transport-Security (HSTS)  *(n/a on plain http localhost)*
