@@ -70,6 +70,7 @@ scripts/new_run.sh <slug> <type> "<task>"
 | `.cursor/skills/` | Procedural how-to (`qa-runs`, `qa-phases`, `qa-loop`, `qa-server`, `qa-jira`, `token-efficient-ops`) |
 | `.cursor/rules/` | Always-on constraints (`qa-engine`, `token-efficiency`, vendored `qa-team`) |
 | `tests/run_tests.sh` | Engine self-tests (offline) — verify scripts, rules, skills, isolation, gating |
+| `tests/smoke_clone.sh` | Fresh-clone smoke test — validates SETUP quickstart offline (`--local` to skip clone) |
 | `INTEGRATIONS.md` | What external testing skills were folded in and from where |
 | `templates/` | requirements, spec, test-case, bug-report, jira-task, loop-run, security-checklist, … |
 | `scripts/new_project.sh` | Creates a new `projects/<slug>/` from the template (once per site) |

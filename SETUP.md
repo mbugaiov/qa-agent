@@ -379,8 +379,23 @@ Each tick: retest Jira scope → fresh exploratory slice → security slice → 
 Run before your first real engagement:
 
 ```bash
-# Engine healthy
+# One-command validation from published repo (offline, no secrets):
+bash tests/smoke_clone.sh
+
+# Or validate the repo you already have cloned:
+bash tests/smoke_clone.sh --local
+
+# Engine unit/integration checks only:
 bash tests/run_tests.sh
+```
+
+`smoke_clone.sh` clones [github.com/mbugaiov/qa-agent](https://github.com/mbugaiov/qa-agent) to a temp
+directory (unless `--local`), runs `new_project.sh` + `new_run.sh`, and checks Jira/server gating —
+matching SETUP §3, §6e, §7, §10 without needing secrets or a live app.
+
+Manual steps still required for full QA (not automated):
+
+```bash
 
 # Project exists
 ls projects/<slug>/project.yaml
