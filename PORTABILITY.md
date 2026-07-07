@@ -70,7 +70,7 @@ If your repo wraps an extra folder (e.g. `parent-repo/your-project/`), publish a
 Pins a project repo inside the engine at a fixed path:
 
 ```bash
-git clone https://github.com/maksymbugaiov/qa-agent.git
+git clone https://github.com/mbugaiov/qa-agent.git
 cd qa-agent
 
 # Project repo root = projects/<slug>/ layout (project.yaml at repo root)
@@ -81,7 +81,7 @@ git submodule update --init --recursive
 Teammates:
 
 ```bash
-git clone --recurse-submodules https://github.com/maksymbugaiov/qa-agent.git
+git clone --recurse-submodules https://github.com/mbugaiov/qa-agent.git
 # or after a normal clone:
 git submodule update --init
 ```
@@ -99,7 +99,7 @@ cd ../..
 Same result as submodule, but you manage the nested repo manually (no pin in engine's `main`):
 
 ```bash
-git clone https://github.com/maksymbugaiov/qa-agent.git
+git clone https://github.com/mbugaiov/qa-agent.git
 cd qa-agent/projects
 
 git clone https://github.com/your-org/qa-agent-project-your-project.git your-project
@@ -116,7 +116,7 @@ Keep repos side by side; open the **parent folder** in Cursor so both are in one
 
 ```bash
 mkdir my-workspace && cd my-workspace
-git clone https://github.com/maksymbugaiov/qa-agent.git
+git clone https://github.com/mbugaiov/qa-agent.git
 git clone https://github.com/your-org/qa-agent-project-your-project.git your-project-data
 
 # Copy or restructure so engine sees projects/your-project/ — one-time:
@@ -197,7 +197,7 @@ See **`SETUP.md` §14** for the full bootstrap. Short version:
 ```bash
 # 1. Host (once): HOST_SETUP.md — Python, global skills, MCP
 # 2. Engine
-git clone https://github.com/maksymbugaiov/qa-agent.git && cd qa-agent
+git clone https://github.com/mbugaiov/qa-agent.git && cd qa-agent
 git submodule add <project-repo-url> projects/your-project && git submodule update --init
 # 3. Secrets (local): copy *.example → .secrets/, fill jira/server/credentials
 # 4. Cursor: open qa-agent/ as workspace

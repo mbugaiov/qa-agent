@@ -24,7 +24,7 @@ Nothing sensitive goes in `project.yaml` — only in `.secrets/`.
 ## 1. Clone and verify the engine
 
 ```bash
-git clone https://github.com/maksymbugaiov/qa-agent.git
+git clone https://github.com/mbugaiov/qa-agent.git
 cd qa-agent
 
 pip install python-docx requests
@@ -455,7 +455,7 @@ git submodule update --init
 Clone engine with all projects:
 
 ```bash
-git clone --recurse-submodules https://github.com/maksymbugaiov/qa-agent.git
+git clone --recurse-submodules https://github.com/mbugaiov/qa-agent.git
 ```
 
 ### Plain clone into `projects/<slug>/`
@@ -523,7 +523,7 @@ qa-agent/                    ← engine (public) — scripts, skills, templates
 Recommended (submodule — engine records which project commit you use):
 
 ```bash
-git clone https://github.com/maksymbugaiov/qa-agent.git
+git clone https://github.com/mbugaiov/qa-agent.git
 cd qa-agent
 git submodule add https://github.com/your-org/qa-agent-project-your-project.git projects/your-project
 git submodule update --init
@@ -532,7 +532,7 @@ git submodule update --init
 Or plain clone (simpler, no SHA pin in engine):
 
 ```bash
-git clone https://github.com/maksymbugaiov/qa-agent.git
+git clone https://github.com/mbugaiov/qa-agent.git
 cd qa-agent/projects
 git clone https://github.com/your-org/qa-agent-project-your-project.git your-project
 ```
