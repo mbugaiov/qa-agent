@@ -275,8 +275,16 @@ STG_HEALTH_PATH=/api/health             # endpoint returning { "buildId": "<git-
 Check before auto-Done:
 
 ```bash
-./scripts/stg_buildid.sh <slug> <merge-sha>
+./scripts/stg_buildid.sh <slug> <handoff-sha>
+# MATCH       — live STG equals handoff
+# MATCH_AHEAD — live STG is ahead but includes handoff (common after follow-on merges)
+# MISMATCH_BEHIND — STG not deployed to handoff yet
+# MISMATCH    — unrelated builds
 ```
+
+Requires `SERVER_GIT_WORKTREE` or `SERVER_GIT_SRC_REPO` in `server.env` for **MATCH_AHEAD** (git ancestry).
+When STG advances past the Jira handoff comment (e.g. handoff `61e1160`, live `7fd51b6`), the gate still passes if
+the handoff commit is an ancestor of live STG on `main`.
 
 ---
 

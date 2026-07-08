@@ -54,7 +54,7 @@ Checklist detail: `templates/security-checklist.md`.
 | <date> | <type> | <scope summary> | <n> | <PASS/GO/…> |
 
 ## Open ops / residual risks
-- <e.g. STG can lag main — use stg_buildid gate before auto-Done>
+- <e.g. STG can lag main — use stg_buildid gate before auto-Done; MATCH_AHEAD when STG is ahead of handoff>
 - <e.g. credentials or env not available for full path>
 
 ## L5 unattended (optional — if enabled for this project)

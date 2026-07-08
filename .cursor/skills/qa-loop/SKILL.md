@@ -11,11 +11,9 @@ skill when the engagement ages or scope shifts — don't keep writing into a sta
 
 A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of:
 
-1. **Work the active QA scope** = every epic child in `status in (In Progress, Validate/Testing)`
-   (i.e. NOT To Do/backlog, NOT Done/Closed). Retest each on the live app. **L5 unattended** — act without
-   asking (see `qa-jira` skill for the machine DoD):
-   - `Validate/Testing` (dev says ready) → PASS + DoD met → **auto-Done** (incl. STG buildId gate); FAIL → **In Progress**.
-     STG buildId MISMATCH ⇒ NOT Done → In Progress with expected-vs-actual.
+1. **Work the active QA scope** = query Jira every tick for **every** epic child in `status in (In Progress, Validate/Testing)` — **never tunnel on a single ticket** while others remain in scope. **Each tick must attempt full machine DoD on ALL tickets returned by the scope query before the tick ends** — do not close one ticket and defer the rest to the next wake. Retest each on the live app. **L5 unattended** — act without asking (see `qa-jira` skill for the machine DoD):
+   - `Validate/Testing` (dev says ready) → PASS + DoD met → **auto-Done** (incl. STG buildId gate: MATCH or MATCH_AHEAD); FAIL → **In Progress**.
+     STG **MISMATCH** / **MISMATCH_BEHIND** ⇒ NOT Done → comment expected-vs-actual (MATCH_AHEAD passes when STG advanced past handoff but includes it).
    - `In Progress` (still being worked / mine to track) → re-check anyway: if the fix is now present and
      passes → move to **Validate/Testing** (or **Done** if unambiguous) with "QA: appears fixed"; else
      leave **In Progress** with a note. Never drop In Progress tickets — they stay in scope until Done/Closed.
@@ -28,6 +26,8 @@ A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of
 2. **Fresh exploratory testing** — pick the next **uncovered or least-covered** area and probe it (rotate so
    coverage broadens every tick, not the same pages). Track covered areas in `run.md` so ticks don't repeat.
 3. **Auto-file new confirmed bugs** to Jira under the epic (dedupe via JQL first, unattended); update `run.md` (covered areas + findings).
+
+4. **impl-qa factory queue (when retest scope is empty):** `labels = impl-qa AND status = "To Do"` — autotake the head ticket (move to In Progress when execution starts), run its linked `runs/<id>/` folder charter. Do not leave impl-qa queued while retest JQL still has open tickets.
 
 **Not on every tick:** security testing — run only on **`exploratory`** and **`regression`** run cycles (skill `qa-security`). Loop ticks are Jira retest + lightweight exploratory slices, not security cycles.
 

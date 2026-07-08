@@ -138,6 +138,28 @@ cat > "projects/$SLUG/.secrets/server.env" <<EOF
 SERVER_URL=http://localhost:59999
 EOF
 ./scripts/stg_buildid.sh "$SLUG" >/dev/null 2>&1; [[ $? -eq 3 ]] && ok "stg_buildid exits 3 when STG_URL unset" || no "stg_buildid STG_URL gate"
+# stg_buildid.sh: ancestor gate (--offline, no curl)
+GATE_REPO="projects/$SLUG/.gate-git"
+rm -rf "$GATE_REPO"
+mkdir -p "$GATE_REPO"
+git -C "$GATE_REPO" init -q
+git -C "$GATE_REPO" config user.email "gate@test"
+git -C "$GATE_REPO" config user.name "gate"
+echo a > "$GATE_REPO/a.txt"; git -C "$GATE_REPO" add a.txt; git -C "$GATE_REPO" commit -q -m "a"
+SHA_A=$(git -C "$GATE_REPO" rev-parse --short HEAD)
+echo b > "$GATE_REPO/b.txt"; git -C "$GATE_REPO" add b.txt; git -C "$GATE_REPO" commit -q -m "b"
+SHA_B=$(git -C "$GATE_REPO" rev-parse --short HEAD)
+cat > "projects/$SLUG/.secrets/server.env" <<EOF
+SERVER_URL=http://localhost:59999
+STG_URL=http://stg.example.invalid
+SERVER_GIT_WORKTREE=$ROOT/$GATE_REPO
+EOF
+OUT=$(./scripts/stg_buildid.sh "$SLUG" "$SHA_A" --offline "$SHA_A" 2>&1); EC=$?
+echo "$OUT" | grep -q '^MATCH ' && [[ $EC -eq 0 ]] && ok "stg_buildid MATCH exact" || no "stg_buildid MATCH exact (got: $OUT ec=$EC)"
+OUT=$(./scripts/stg_buildid.sh "$SLUG" "$SHA_A" --offline "$SHA_B" 2>&1); EC=$?
+echo "$OUT" | grep -q '^MATCH_AHEAD ' && [[ $EC -eq 0 ]] && ok "stg_buildid MATCH_AHEAD ancestor" || no "stg_buildid MATCH_AHEAD (got: $OUT ec=$EC)"
+OUT=$(./scripts/stg_buildid.sh "$SLUG" "$SHA_B" --offline "$SHA_A" 2>&1); EC=$?
+echo "$OUT" | grep -q '^MISMATCH_BEHIND ' && [[ $EC -eq 2 ]] && ok "stg_buildid MISMATCH_BEHIND" || no "stg_buildid MISMATCH_BEHIND (got: $OUT ec=$EC)"
 # rule + skills carry the L5 auto policy
 grep_ok "L5 unattended" ".cursor/rules/qa-engine.mdc" "qa-engine has L5 unattended policy"
 grep_ok "STG buildId gate" ".cursor/rules/qa-engine.mdc" "qa-engine has STG buildId gate"

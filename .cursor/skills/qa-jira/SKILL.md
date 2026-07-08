@@ -114,14 +114,16 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
 
 - `Validate/Testing` = QA queue. Retest → PASS → **auto-Done** (no human approval) when the DoD below is met; FAIL → **In Progress** (with comment).
 - `In Progress` = also in QA scope; re-check each tick, never drop until Done/Closed.
+- **Multi-ticket ticks (mandatory):** each loop tick runs the scope JQL and must attempt **full machine DoD on every row returned** before the tick ends. Never close one ticket and defer siblings to the next wake. A dev handoff that moves a previously Done ticket back to `Validate/Testing` (new merge SHA) puts it back in scope — retest it in the same tick if other scope tickets are also open.
 - Active/QA-retest scope JQL: `parent = <EPIC-KEY> AND statusCategory != Done AND status not in ("To Do","On Hold")`.
 - QA *implementation* (impl-qa) scope JQL: `parent = <EPIC-KEY> AND labels = impl-qa AND status = "To Do"`.
 
 ### Machine DoD for auto-Done (all must hold)
 1. Two-pass retest **PASS** against the **canonical source** (detail page / DB / API), not a weaker proxy.
-2. **STG buildId gate**: `scripts/stg_buildid.sh <slug> <expected-merge-sha>` returns MATCH — the live STG
-   `/api/health` buildId equals the merge commit from the dev hand-off comment. MISMATCH ⇒ do NOT Done;
-   move to In Progress with expected-vs-actual buildId. (Skip only when the project has no `STG_URL`.)
+2. **STG buildId gate**: `scripts/stg_buildid.sh <slug> <handoff-sha>` returns **MATCH** or **MATCH_AHEAD** — live STG
+   `/api/health` buildId equals the handoff commit, or is **ahead** of it on the same branch (handoff SHA is a git
+   ancestor of live STG; requires `SERVER_GIT_WORKTREE` or `SERVER_GIT_SRC_REPO` in `server.env`). **MISMATCH** or
+   **MISMATCH_BEHIND** ⇒ do NOT Done; comment expected-vs-actual. (Skip only when the project has no `STG_URL`.)
 3. Mandatory **E2E recording** attached (pure-CI/pipeline tickets exempt).
 4. Verdict is not `needs-human` (ambiguous requirement / policy uncertainty / destructive → leave open, surface to user).
 
