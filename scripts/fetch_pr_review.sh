@@ -24,10 +24,14 @@ if [[ -z "$BODY" ]]; then
   exit 1
 fi
 
-printf '%s' "$BODY" | python3 - "$OUT" <<'PY'
+TMP=$(mktemp)
+trap 'rm -f "$TMP"' EXIT
+printf '%s' "$BODY" > "$TMP"
+
+python3 - "$OUT" "$TMP" <<'PY'
 import sys
 from pathlib import Path
-body = sys.stdin.read()
+body = Path(sys.argv[2]).read_text(encoding="utf-8")
 if not body.strip():
     print("No CR comment found", file=sys.stderr)
     sys.exit(1)
@@ -36,7 +40,6 @@ if marker in body:
     body = body.split(marker, 1)[1]
 if "## Cursor automated review" in body:
     body = body.split("## Cursor automated review", 1)[1]
-path = sys.argv[1]
-Path(path).write_text(body.strip() + "\n", encoding="utf-8")
-print(f"Wrote {path} from PR comment")
+Path(sys.argv[1]).write_text(body.strip() + "\n", encoding="utf-8")
+print(f"Wrote {sys.argv[1]} from PR comment")
 PY

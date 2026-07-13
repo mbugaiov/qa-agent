@@ -348,10 +348,19 @@ have .cursor/rules/cr-autofix.mdc
 grep_ok "cr_autofix" .cursor/rules/code-review.mdc "code-review references autofix"
 grep_ok "Max 3 attempts" .cursor/rules/cr-autofix.mdc "cr-autofix has attempt cap"
 bash scripts/check_review_gate.sh tests/fixtures/review-gate/blocking-items.md >/dev/null 2>&1
-OUT=$(bash scripts/cr_autofix.sh --review tests/fixtures/review-gate/blocking-items.md 2>&1); EC=$?
+OUT=$(env -u CURSOR_API_KEY bash scripts/cr_autofix.sh --review tests/fixtures/review-gate/blocking-items.md 2>&1); EC=$?
 echo "$OUT" | grep -qi "auto-fix" && [[ $EC -ne 0 ]] && ok "cr_autofix requires agent key offline" || no "cr_autofix gating"
 grep_ok "committed fixes locally" scripts/cr_autofix.sh "cr_autofix commits before re-review"
 grep_ok "last | .body" scripts/fetch_pr_review.sh "fetch_pr_review uses full comment body"
+python3 - <<'PY' && ok "fetch_pr_review comment parse offline" || no "fetch_pr_review parse"
+from pathlib import Path
+body = "<!-- qa-agent-cursor-review -->\n## Cursor automated review\n\n## Summary\nok\n## Blocking issues\nNone.\n"
+if "<!-- qa-agent-cursor-review -->" in body:
+    body = body.split("<!-- qa-agent-cursor-review -->", 1)[1]
+if "## Cursor automated review" in body:
+    body = body.split("## Cursor automated review", 1)[1]
+assert "Blocking issues" in body and "None" in body
+PY
 
 echo ""
 echo "RESULT: $PASS passed, $FAIL failed"

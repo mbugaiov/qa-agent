@@ -111,11 +111,7 @@ git --no-pager diff origin/${BASE}...HEAD 2>/dev/null || git --no-pager diff HEA
     git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
     if ! git diff --quiet || ! git diff --cached --quiet; then
       git add -A
-      if git log -1 --pretty=%s 2>/dev/null | grep -q '\[cr-autofix\]'; then
-        git commit --amend -m "fix(cr): address blocking review findings [cr-autofix]"
-      else
-        git commit -m "fix(cr): address blocking review findings [cr-autofix]"
-      fi
+      git commit -m "fix(cr): address blocking review findings [cr-autofix]"
       echo "cr_autofix: committed fixes locally (pre re-review)"
     fi
   fi
