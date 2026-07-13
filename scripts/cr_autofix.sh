@@ -20,9 +20,15 @@ MAX="${CR_AUTOFIX_MAX:-3}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --review) REVIEW="${2:-}"; shift 2 ;;
-    --base) BASE="${2:-}"; shift 2 ;;
-    --pr) PR="${2:-}"; shift 2 ;;
+    --review)
+      [[ $# -ge 2 && -n "${2:-}" ]] || { echo "Usage: --review <file>" >&2; exit 1; }
+      REVIEW="$2"; shift 2 ;;
+    --base)
+      [[ $# -ge 2 && -n "${2:-}" ]] || { echo "Usage: --base <branch>" >&2; exit 1; }
+      BASE="$2"; shift 2 ;;
+    --pr)
+      [[ $# -ge 2 && -n "${2:-}" ]] || { echo "Usage: --pr <number>" >&2; exit 1; }
+      PR="$2"; shift 2 ;;
     --ci) CI=1; shift ;;
     *) echo "Unknown arg: $1" >&2; exit 1 ;;
   esac
