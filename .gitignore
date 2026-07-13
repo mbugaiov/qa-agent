@@ -35,3 +35,6 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Local CR agent output
+/review.md

@@ -61,6 +61,14 @@ def is_covered(status: str) -> bool:
     return any(m in s for m in PASS_MARKERS)
 
 
+def find_latest_matrix(project: Path) -> Path | None:
+    runs = project / "runs"
+    if not runs.is_dir():
+        return None
+    candidates = sorted(runs.glob("*/traceability-matrix.md"))
+    return candidates[-1] if candidates else None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("project", help="projects/<slug>")
@@ -77,9 +85,13 @@ def main() -> int:
         print(f"ERROR: not a directory: {project}", file=sys.stderr)
         return 1
 
-    matrix = Path(args.matrix) if args.matrix else (
-        project / "runs/2026-07-07-full-active-dev-full-regression/traceability-matrix.md"
-    )
+    matrix = Path(args.matrix) if args.matrix else find_latest_matrix(project)
+    if matrix is None or not matrix.is_file():
+        print(
+            "ERROR: no traceability-matrix.md under runs/ (pass --matrix PATH)",
+            file=sys.stderr,
+        )
+        return 1
 
     scope = in_scope_reqs(project)
     if not scope:

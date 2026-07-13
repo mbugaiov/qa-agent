@@ -1,0 +1,35 @@
+---
+description: When Code Review fails (blocking issues), automatically fix findings, re-run gates, and push — max 3 attempts then escalate. Applies to qa-agent engine PRs and local run_code_review.sh failures.
+globs: "{qa-agent/**,scripts/**,.cursor/**,.github/**,tests/**,templates/**,AGENTS.md,PORTABILITY.md}"
+alwaysApply: false
+---
+
+# CR auto-fix loop (engine)
+
+When **`check_review_gate.sh`** fails or the GitHub **Code Review** check is red:
+
+1. **Read blockers** — from `review.md`, PR comment (`<!-- qa-agent-cursor-review -->`), or `gh pr view --comments`.
+2. **Fix every item** under `## Blocking issues` — root cause, not gate suppression.
+3. **Verify locally** — `bash scripts/pre_merge_check.sh` must exit 0.
+4. **Re-review** — `bash scripts/run_code_review.sh <base>` until gate passes or attempts exhausted.
+5. **Push** — same PR branch; CI re-runs review automatically.
+
+## Rules
+
+- **Max 3 attempts** per PR head (`CR_AUTOFIX_MAX=3`). After that, stop and report remaining blockers to the user.
+- **Never** edit `review.md` to fake `LGTM` or `None.` under Blocking issues.
+- **Never** weaken `check_review_gate.sh`, fixtures, or `projects_isolation_check.sh` to pass without fixing the underlying issue.
+- **Scope** — fix only what blockers cite (+ tests/docs the fix requires). No drive-by refactors.
+- **Secrets** — do not commit `.secrets/`, tokens, or `cursor.env`.
+- **CI mode** — `bash scripts/cr_autofix.sh --ci` may commit `fix(cr): … [cr-autofix]` and push; one autofix job per failed review (workflow enforces attempt cap).
+
+## Agent prompt (when fixing manually)
+
+```
+Blocking CR on qa-agent engine. Read review.md (or latest PR review comment).
+Fix ALL blocking issues per .cursor/rules/code-review.mdc.
+Run bash scripts/pre_merge_check.sh then bash scripts/run_code_review.sh main.
+Do not stop until gate passes or 3 attempts — then list what remains.
+```
+
+Procedural detail: skill `qa-code-review` § CR auto-fix loop.

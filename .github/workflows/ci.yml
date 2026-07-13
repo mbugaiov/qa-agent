@@ -24,3 +24,9 @@ jobs:
 
       - name: Portability check
         run: bash scripts/portability_check.sh
+
+      - name: Projects isolation check
+        run: bash scripts/projects_isolation_check.sh
+
+      - name: Review gate fixtures
+        run: bash scripts/check_review_gate_fixtures.sh

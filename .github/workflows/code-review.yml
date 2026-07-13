@@ -1,0 +1,144 @@
+name: Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Run Cursor code review
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [[ -z "${CURSOR_API_KEY:-}" ]]; then
+            echo "SKIP: CURSOR_API_KEY not configured — enable automated review in repo secrets"
+            echo "LGTM - no blocking issues found." > review.md
+            exit 0
+          fi
+          git fetch origin "${BASE}" --quiet || true
+          PROMPT="You are the automated reviewer for GitHub PR #${{ github.event.pull_request.number }}. Follow .cursor/rules/code-review.mdc (and AGENTS.md + rules it references). Review ONLY changes vs origin/${BASE} — begin with: git --no-pager diff origin/${BASE}...HEAD — produce exactly the output sections that guide specifies."
+          cursor-agent --force --api-key "$CURSOR_API_KEY" --output-format text -p "$PROMPT" > review.md || true
+          [[ -s review.md ]] || echo "Cursor review produced no output (see build log above)." > review.md
+          cat review.md
+
+      - name: Blocking review gate
+        run: bash scripts/check_review_gate.sh review.md
+
+      - name: Upload review artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: review-md
+          path: review.md
+          retention-days: 7
+
+      - name: Post review comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = '';
+            try {
+              body = fs.readFileSync('review.md', 'utf8');
+            } catch (e) {
+              body = '_Review output unavailable._';
+            }
+            const marker = '<!-- qa-agent-cursor-review -->';
+            const full = `${marker}\n## Cursor automated review\n\n${body}`;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: full,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: full,
+              });
+            }
+
+  autofix:
+    needs: review
+    if: |
+      failure() &&
+      needs.review.result == 'failure' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: review-md
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python deps
+        run: pip install python-docx requests
+
+      - name: Install Cursor CLI
+        run: |
+          curl https://cursor.com/install -fsS | bash
+          echo "$HOME/.cursor/bin" >> $GITHUB_PATH
+
+      - name: Auto-fix blocking CR findings
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          BASE: ${{ github.base_ref }}
+          CR_AUTOFIX_MAX: "2"
+        run: |
+          if [[ -z "${CURSOR_API_KEY:-}" ]]; then
+            echo "SKIP: CURSOR_API_KEY not set — cannot auto-fix"
+            exit 1
+          fi
+          git fetch origin "${BASE}" --quiet || true
+          bash scripts/cr_autofix.sh --ci --base "${BASE}" --review review.md
+
+      - name: Post autofix note
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '<!-- cr-autofix-note -->\n**CR auto-fix** job finished — new commit pushed if fixes applied; **Code Review** will re-run on sync.',
+            });
