@@ -33,6 +33,8 @@
 **Verdict**: <verdict>
 **Confidence**: high | medium | low
 
+**Jira labels (when filing):** `confirmed-defect` + project slug (e.g. `your-project`) — `create_jira_issue.py` auto-adds `qa-agent`, `severity-s*`, and **`impl-dev`** (dev factory autotake).
+
 ### Root cause & class (for confirmed-defect)
 - **Root cause (mechanism-specific)**: <e.g. validation throws and surfaces as 500, not "validation broken">
 - **Class members (same latent bug elsewhere)**: <other forms/routes with the same mechanism, or "none found">

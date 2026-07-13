@@ -1,0 +1,27 @@
+---
+description: Agent usage accounting — four-tier methodology; Tier D estimated spend from local logs when billing API unavailable.
+alwaysApply: true
+---
+
+# Usage accounting (always apply)
+
+When the user asks about **tokens, cost, spend, billing, or usage per day**:
+
+1. Run `python3 scripts/collect_usage.py --slug <slug> --days 14` (add `--offline` if no network).
+2. Read `projects/<slug>/factory/usage.json` — follow skill **`usage-accounting`** for interpretation.
+3. Report using **four tiers** — never collapse them:
+
+| Tier | Label in output | May call "tokens"? |
+|------|-----------------|-------------------|
+| **A** | Measured (Cursor billing API) | **Yes** — exact |
+| **D** | ESTIMATED (local logs + factory + CI) | **Yes** — must say **ESTIMATED** / **~USD** |
+| **B** | Countable (ticks, CI runs) | **No** — "invocations" |
+| **C** | Proxy (IDE turns, bytes) | **No** — "activity proxy" |
+
+**Primary when no Admin API:** Tier **D** from `cursor.requestTraces.log` + factory + CI. No cookies required.
+
+**Forbidden:** quoting `qa_ticks`, `ci_review_runs`, or `ide_user_turns` as exact tokens without Tier D formula.
+
+**Calibration:** `projects/<slug>/.secrets/cursor.env` → `USAGE_TOKENS_PER_MS`, `USAGE_TOKENS_PER_QA_TICK`, `USAGE_TOKENS_PER_CI`, `USAGE_USD_PER_MTOK`.
+
+For factory ship metrics (PRs, tests, Jira) use `collect_metrics.py` — that script does **not** measure LLM spend.

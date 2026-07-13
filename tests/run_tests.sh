@@ -61,6 +61,8 @@ echo "$DRY" | grep -q '"key": "TST-1"' && ok "payload parent epic=TST-1" || no "
 echo "$DRY" | grep -q '"accountId": "acc:123"' && ok "payload assignee set" || no "payload assignee"
 echo "$DRY" | grep -q 'Story points: 3' && ok "story points by severity (S2=3)" || no "story points default"
 echo "$DRY" | grep -q 'add-to-active-sprint: True' && ok "sprint plan present" || no "sprint plan"
+DRY4=$(python3 scripts/create_jira_issue.py --project projects/$SLUG --summary "t" --description "d" --severity S2 --labels confirmed-defect --dry-run 2>/dev/null)
+echo "$DRY4" | grep -q '"impl-dev"' && ok "confirmed-defect adds impl-dev" || no "confirmed-defect should add impl-dev"
 
 echo "== 4b. Jira ADF: Markdown headings + Gherkin code blocks =="
 python3 scripts/test_jira_adf.py -q 2>/dev/null && ok "jira_adf unit tests" || no "jira_adf unit tests"
@@ -110,11 +112,11 @@ EOF
 ./scripts/server_ctl.sh "$SLUG" sync 2>&1 | grep -qi "nothing to sync" && ok "sync no-ops when SERVER_GIT_SYNC unset" || no "sync gating"
 
 echo "== 9. Skills + rule frontmatter =="
-for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security token-efficient-ops; do
+for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security token-efficient-ops usage-accounting; do
   f=".cursor/skills/$s/SKILL.md"
   { grep -q "^name:" "$f" && grep -q "^description:" "$f"; } && ok "skill $s has name+description" || no "skill $s frontmatter"
 done
-for r in qa-engine token-efficiency qa-team; do
+for r in qa-engine token-efficiency usage-accounting qa-team; do
   grep -q "^description:" ".cursor/rules/$r.mdc" && ok "rule $r has frontmatter" || no "rule $r frontmatter"
 done
 
@@ -122,9 +124,12 @@ echo "== 9b. Portability doc + no engine LRM script =="
 have PORTABILITY.md
 [[ ! -f scripts/create_l5_jira_tickets.sh ]] && ok "LRM factory script not in engine scripts/" || no "engine should not ship create_l5_jira_tickets.sh"
 grep_ok "projects/<slug>" PORTABILITY.md "PORTABILITY.md is slug-generic"
+chmod +x scripts/portability_check.sh 2>/dev/null || true
+./scripts/portability_check.sh && ok "portability_check clean" || no "portability_check leaks"
+have .github/workflows/ci.yml
 
 echo "== 10. AGENTS.md index points to real skills =="
-for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security token-efficient-ops; do
+for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security token-efficient-ops usage-accounting; do
   grep_ok "\`$s\`" AGENTS.md "AGENTS.md references skill $s"
 done
 
@@ -185,6 +190,38 @@ echo "$OUT" | grep -q "TST-100" && echo "$OUT" | grep -q "failures" && ok "facto
 JSON=$(./scripts/factory_status.sh "$SLUG" --json 2>&1)
 echo "$JSON" | grep -q '"ticket_count": 2' && ok "factory_status --json" || no "factory_status json"
 [[ -f "projects/$SLUG/factory/runs/_loop.jsonl" ]] && ok "factory _loop.jsonl created" || no "factory log file"
+
+echo "== 12b. Factory tick gate =="
+GATE_FAIL=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC=$?
+echo "$GATE_FAIL" | grep -qi "GATE CLOSED" && ok "factory_tick_gate closed without scope" || no "factory_tick_gate should close without scope"
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-99,TST-100 count=2 >/dev/null
+GATE_FAIL2=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC2=$?
+echo "$GATE_FAIL2" | grep -qi "missing dod_check" && ok "factory_tick_gate requires dod_check" || no "factory_tick_gate dod_check requirement"
+./scripts/factory_log.sh "$SLUG" TST-99 handoff_read >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-99 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-100 handoff_read >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-100 transition to=In\ Progress reason="env blocked" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-100 dod_check verdict=RETURN_DEV bug_filed=TST-200 transition=In\ Progress openspec_read=true dev_handoff=handoff/TST-100.md retest_attempted=true alternate_locators_tried=true feature_steps_executed=true >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" >/dev/null && ok "factory_tick_gate opens with terminal dod_check" || no "factory_tick_gate should open"
+./scripts/factory_log.sh "$SLUG" TST-102 dod_check verdict=BLOCKED bug_filed=TST-201 blocker_note="legacy" >/dev/null 2>&1 || true
+GATE_FAIL4=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-102 2>&1)
+echo "$GATE_FAIL4" | grep -qi "BLOCKED" && ok "factory_tick_gate rejects BLOCKED" || no "factory_tick_gate should reject BLOCKED"
+./scripts/factory_log.sh "$SLUG" TST-101 dod_check verdict=PARTIAL note="incomplete" >/dev/null 2>&1 || true
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-101 count=1 >/dev/null
+GATE_FAIL3=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-101 2>&1)
+echo "$GATE_FAIL3" | grep -qi "PARTIAL" && ok "factory_tick_gate rejects PARTIAL" || no "factory_tick_gate should reject PARTIAL"
+
+echo "== 12. Usage accounting =="
+have scripts/collect_usage.py
+have .cursor/skills/usage-accounting/SKILL.md
+have .cursor/rules/usage-accounting.mdc
+grep_ok "alwaysApply: true" .cursor/rules/usage-accounting.mdc "usage-accounting rule is always-on"
+mkdir -p "projects/$SLUG/factory/runs"
+./scripts/factory_log.sh "$SLUG" _loop tick_end run=selftest >/dev/null
+OUT=$(python3 scripts/collect_usage.py --slug "$SLUG" --days 7 --offline 2>&1)
+echo "$OUT" | grep -q "Usage report" && ok "collect_usage prints summary" || no "collect_usage summary"
+[[ -f "projects/$SLUG/factory/usage.json" ]] && ok "usage.json written" || no "usage.json missing"
+python3 -c "import json; d=json.load(open('projects/$SLUG/factory/usage.json')); assert d['methodology_version']; assert 'A_exact' in d['tiers']; assert 'D_estimated' in d['tiers']" && ok "usage.json schema valid" || no "usage.json schema"
 
 echo ""
 echo "RESULT: $PASS passed, $FAIL failed"

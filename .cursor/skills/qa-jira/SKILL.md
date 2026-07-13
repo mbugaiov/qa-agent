@@ -63,8 +63,9 @@ If the project uses factory engineering tickets, label them **`impl-dev`** or **
 ```
 python3 scripts/create_jira_issue.py --project projects/<slug> \
   --summary "BUG-XXX: <one line>" --description-file <run>/bug-report.md \
-  --severity S2 --labels <slug> --attach <run>/screenshots/BUG-XXX.png   # repeatable
-  # --dry-run to preview, --set-priority to map S1..S4→Highest..Low
+  --severity S2 --labels <slug>,confirmed-defect --attach <run>/screenshots/BUG-XXX.png   # repeatable
+  # confirmed-defect → script also adds impl-dev (dev factory autotake). --dry-run to preview.
+  # --no-impl-dev only for rare exceptions (e.g. human-triaged-only noise).
 ```
 
 ## Filing a task (L5 / factory / dev work)
@@ -112,8 +113,9 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
 
 ## Validation workflow (QA scope) — L5 unattended
 
-- `Validate/Testing` = QA queue. Retest → PASS → **auto-Done** (no human approval) when the DoD below is met; FAIL → **In Progress** (with comment).
-- `In Progress` = also in QA scope; re-check each tick, never drop until Done/Closed.
+- `Validate/Testing` = QA queue. Retest → PASS → **auto-Done** when DoD met. **Only two terminal outcomes for V/T:** **Done** (all passed) or **In Progress** (blocker/dev fix). **Never leave a ticket in Validate/Testing while blocked.**
+- **Locator / automation blockers:** try alternate locators and native-click paths first. If still blocked → file separate dev ticket (impl-dev: add testids/locators) or product bug → `jira_return_in_progress.py` → log `dod_check verdict=RETURN_DEV`.
+- `In Progress` = also in QA scope; re-check each tick, never drop until Done/Closed. `SKIP_DEV` dod_check only when `jira_status=In Progress` (not V/T).
 - **Multi-ticket ticks (mandatory):** each loop tick runs the scope JQL and must attempt **full machine DoD on every row returned** before the tick ends. Never close one ticket and defer siblings to the next wake. A dev handoff that moves a previously Done ticket back to `Validate/Testing` (new merge SHA) puts it back in scope — retest it in the same tick if other scope tickets are also open.
 - Active/QA-retest scope JQL: `parent = <EPIC-KEY> AND statusCategory != Done AND status not in ("To Do","On Hold")`.
 - QA *implementation* (impl-qa) scope JQL: `parent = <EPIC-KEY> AND labels = impl-qa AND status = "To Do"`.
@@ -127,10 +129,14 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
 3. Mandatory **E2E recording** attached (pure-CI/pipeline tickets exempt).
 4. Verdict is not `needs-human` (ambiguous requirement / policy uncertainty / destructive → leave open, surface to user).
 
+Log a terminal `dod_check` per scope ticket and pass `factory_tick_gate.sh` before `tick_end` (skill `qa-loop`, `factory/schema.md`). **Forbidden at tick_end:** `PARTIAL`, `DEFERRED`, `BLOCKED`, comments-only “PASS (recording pending)”. V/T tickets with blockers must use `RETURN_DEV` or `FAIL` **and** transition to In Progress same tick.
+
 ### Auto-file & auto-reopen (unattended, default ON)
 - **Confirmed defect** (evidence + `confirmed-defect` verdict) → file immediately with `create_jira_issue.py`
-  (no ask-first). **Dedupe via JQL first** (search open issues under the epic with the same summary); use
-  `--dry-run` for an audit preview only. NEVER auto-file `works-as-specified`/`cannot-reproduce`/`needs-human`.
+  (no ask-first). **Always pass `--labels <slug>,confirmed-defect`** — the script auto-adds **`impl-dev`** so the
+  dev factory loop can autotake (`labels = impl-dev AND status = "To Do"`). **Dedupe via JQL first** (search open
+  issues under the epic with the same summary); use `--dry-run` for an audit preview only. NEVER auto-file
+  `works-as-specified`/`cannot-reproduce`/`needs-human`.
 - **Regression** (a Done ticket FAILS retest) → `scripts/reopen_regression.py --project projects/<slug> --key <ISSUE-KEY> --reason "…" [--attach …]` moves it to In Progress with a REGRESSION comment + evidence.
 
 ## Rules

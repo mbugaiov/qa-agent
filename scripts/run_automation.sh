@@ -82,6 +82,8 @@ SPEC_ARG=""
 if [[ "$SUITE" != "all" ]]; then
   SPEC_ARG="specs/$SUITE"
   [[ -f "$AUTODIR/$SPEC_ARG" ]] || { echo "Spec not found: $AUTODIR/$SPEC_ARG" >&2; exit 1; }
+else
+  SPEC_ARG="specs/admin-flows.spec.js specs/primary-flows.spec.js specs/public-surfaces.spec.js specs/rbac-guards.spec.js specs/lab-power.spec.js specs/lab-power-value.spec.js specs/health-nav.spec.js specs/reports-smoke.spec.js specs/landing.spec.js specs/stations-filter.spec.js specs/theme.spec.js specs/queue-triage.spec.js specs/equipment-picker.spec.js specs/stations-drilldown.spec.js specs/scheduled-backlog.spec.js specs/enhanced-reporting.spec.js specs/display-pii.spec.js specs/schedule-slot.spec.js specs/station-schedule-visibility.spec.js specs/equipment-guard.spec.js specs/capability-matching.spec.js specs/qa-regressions.spec.js specs/nav-consolidated.spec.js specs/edit-submitted.spec.js specs/quick-test-guardrails.spec.js"
 fi
 
 echo "Running automation @ $BASE_URL (suite=$SUITE)"

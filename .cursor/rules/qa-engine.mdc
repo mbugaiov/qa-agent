@@ -22,14 +22,15 @@ alwaysApply: false
 - **Test the intended branch, not a stale dir**: if a project sets `SERVER_GIT_SYNC`, always `server_ctl <slug> sync` (isolated worktree at `origin/<branch>`) before starting, and serve from that worktree on its dedicated port. Never mutate the developer's working dir; never assume the checked-out dir is current.
 - **L5 unattended mode: act without asking when the rules are clear.** Auto-accept and auto-file/reopen run unattended — do NOT ask the user for Done/filing approval. The only escape is a `needs-human` verdict (see below).
   - **Scope scan — all tickets per tick:** query Jira for every epic child in `In Progress` / `Validate/Testing` and run full machine DoD on **each** before ending the tick; never tunnel on one ticket while others remain in scope (skill `qa-loop`).
+  - **DoD gate before tick_end:** `./scripts/factory_tick_gate.sh <slug>` must exit 0; every scope ticket needs `dod_check` with terminal verdict (`DONE|FAIL|RETURN_DEV|SKIP_DEV`). `PARTIAL` / `DEFERRED` / `PASS_PENDING` / `BLOCKED` forbid `tick_end`. **V/T tickets cannot stay in Validate/Testing while blocked** — transition to In Progress + file dev/bug ticket, or Done when DoD met (skill `qa-loop`, `factory/schema.md`).
   - **Auto-accept (Validate/Testing → Done)** ONLY when the machine DoD is met: (1) retest two-pass PASS against the canonical source; (2) **STG buildId gate** — `scripts/stg_buildid.sh <slug> <handoff-sha>` returns **MATCH** or **MATCH_AHEAD** (live STG equals handoff, or is ahead on the same branch and includes the handoff commit via git ancestry; skip only for projects with no STG configured); (3) mandatory E2E recording attached (pure-CI/pipeline tickets exempt); (4) verdict is not `needs-human`. **MISMATCH** / **MISMATCH_BEHIND** ⇒ do NOT Done; comment expected-vs-actual buildId. 
-  - **Auto-file CONFIRMED bugs** unattended (evidence + `confirmed-defect` verdict), deduped via JQL first; NEVER auto-file `works-as-specified`/`cannot-reproduce`/`needs-human`.
-  - **Auto-reopen on regression**: a Done ticket that FAILS retest → `scripts/reopen_regression.py` moves it to In Progress with a REGRESSION comment + evidence.
+  - **Auto-file CONFIRMED bugs** unattended (evidence + `confirmed-defect` verdict), deduped via JQL first; NEVER auto-file `works-as-specified`/`cannot-reproduce`/`needs-human`. Every filed bug MUST include labels **`confirmed-defect`** and **`impl-dev`** (dev factory JQL: `labels = impl-dev AND status = "To Do"`) — `create_jira_issue.py` adds `impl-dev` automatically when `confirmed-defect` is present; use `--no-impl-dev` only for rare exceptions.
+  - **Retest FAIL handoff (mandatory):** before any scope retest, run `scripts/openspec_read.sh` (skill `qa-openspec`) and validate PF/TC against OpenSpec WHEN/THEN. On **FAIL** or **RETURN_DEV**, fill `templates/retest-fail-dev-handoff.md` and post via `jira_return_in_progress.py --handoff-file`. Gate requires `openspec_read=true` + `dev_handoff=<path>` in `dod_check`.
   - **`needs-human`**: ambiguous requirement, policy uncertainty, or destructive/irreversible action → do NOT auto-close/auto-act; leave the ticket and surface it to the user.
 - Never commit secrets — they live in gitignored `projects/<slug>/.secrets/`.
 - Report is not "done" until full acceptance coverage exists — smoke passing ≠ accepted.
 
-Procedural how-to lives in skills: `qa-runs`, `qa-phases`, `qa-loop`, `qa-server`, `qa-jira`
+Procedural how-to lives in skills: `qa-runs`, `qa-phases`, `qa-loop`, `qa-openspec`, `qa-server`, `qa-jira`
 (under `qa-agent/.cursor/skills/`). The portable spine is `qa-agent/AGENTS.md`.
 
 After changing any engine script, rule, skill, or template, run `bash tests/run_tests.sh`

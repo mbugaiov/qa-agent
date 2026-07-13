@@ -29,6 +29,7 @@
 - **Scope JQL:** `parent = <EPIC-KEY> AND status in ("In Progress", "Validate/Testing")` (adjust per project)
 - **On Hold / skip:** <ticket keys or status exclusions>
 - **Last known scope:** <empty | list keys>
+- **DoD gate:** before each `tick_end`, `./scripts/factory_tick_gate.sh <slug>` must exit 0. Log `scope_check` + per-ticket `dod_check` (terminal verdicts only). See `factory/schema.md` + skill `qa-loop`.
 
 ## Coverage ledger (rotate exploratory each tick)
 - ✅ Covered: <areas already tested>

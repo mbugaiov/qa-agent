@@ -17,11 +17,13 @@ triage → report → (optional) file to Jira with evidence. One project = one s
 | The detailed per-phase how-to (Phase 1–9, spec layer) | `qa-phases` |
 | A recurring/continuous QA loop tick | `qa-loop` |
 | Starting/stopping the app under test | `qa-server` |
+| Test data prep/cleanup before feature tests (STG congestion) | `qa-test-data` |
 | Filing/validating in Jira (+ recordings, fields, isolation) | `qa-jira` |
 | Live-app security testing (rotating slice, loop + standalone) | `qa-security` |
 | Least-token way to do any op (Jira/Bitbucket/git/testing) | `token-efficient-ops` |
+| Token spend / usage per day (methodology + collection) | `usage-accounting` |
 | Security checklist categories (reference) | `templates/security-checklist.md` |
-| Always-on hard constraints | rules `.cursor/rules/qa-engine.mdc` + `token-efficiency.mdc` + `qa-team.mdc` |
+| Always-on hard constraints | rules `.cursor/rules/qa-engine.mdc` + `token-efficiency.mdc` + `usage-accounting.mdc` + `qa-team.mdc` |
 | What external methodology was integrated and from where | `INTEGRATIONS.md` |
 | Engine vs projects repo split, onboarding any new site | `PORTABILITY.md` |
 | Host machine setup (global skills, Python, MCP) | `HOST_SETUP.md` |

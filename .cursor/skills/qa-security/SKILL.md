@@ -94,7 +94,7 @@ Check CSP, X-Frame-Options / frame-ancestors, X-Content-Type-Options, Referrer-P
 
 | Outcome | Action |
 |---------|--------|
-| **Confirmed defect** | File under epic via `create_jira_issue.py` (dedupe JQL first); severity per `qa-team` scale; attach evidence |
+| **Confirmed defect** | File under epic via `create_jira_issue.py` with `--labels <slug>,confirmed-defect` (auto-adds `impl-dev`; dedupe JQL first); severity per `qa-team` scale; attach evidence |
 | **Expected on localhost only** | Note in run log — do **not** file |
 | **Policy gap / ambiguous** | `needs-human` — comment in run.md, do not auto-close tickets |
 | **Pass** | One-line evidence (header snippet, status code, screenshot ref) in run log |

@@ -18,6 +18,7 @@ projects/*
 projects/*/runs/**/screenshots/
 projects/*/automation/playwright-report/
 projects/*/automation/test-results/
+projects/*/.test-data/
 
 # Generated reports and operational factory ledger
 projects/*/reports/*.docx

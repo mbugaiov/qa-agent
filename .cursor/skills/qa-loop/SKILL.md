@@ -12,7 +12,7 @@ skill when the engagement ages or scope shifts — don't keep writing into a sta
 A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of:
 
 1. **Work the active QA scope** = query Jira every tick for **every** epic child in `status in (In Progress, Validate/Testing)` — **never tunnel on a single ticket** while others remain in scope. **Each tick must attempt full machine DoD on ALL tickets returned by the scope query before the tick ends** — do not close one ticket and defer the rest to the next wake. Retest each on the live app. **L5 unattended** — act without asking (see `qa-jira` skill for the machine DoD):
-   - `Validate/Testing` (dev says ready) → PASS + DoD met → **auto-Done** (incl. STG buildId gate: MATCH or MATCH_AHEAD); FAIL → **In Progress**.
+   - `Validate/Testing` (dev says ready) → PASS + DoD met → **auto-Done** (incl. STG buildId gate: MATCH or MATCH_AHEAD); FAIL → **In Progress** + bug; **blocked** → **In Progress** + dev/bug ticket — **never leave V/T while blocked**.
      STG **MISMATCH** / **MISMATCH_BEHIND** ⇒ NOT Done → comment expected-vs-actual (MATCH_AHEAD passes when STG advanced past handoff but includes it).
    - `In Progress` (still being worked / mine to track) → re-check anyway: if the fix is now present and
      passes → move to **Validate/Testing** (or **Done** if unambiguous) with "QA: appears fixed"; else
@@ -27,7 +27,9 @@ A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of
    coverage broadens every tick, not the same pages). Track covered areas in `run.md` so ticks don't repeat.
 3. **Auto-file new confirmed bugs** to Jira under the epic (dedupe via JQL first, unattended); update `run.md` (covered areas + findings).
 
-4. **impl-qa factory queue (when retest scope is empty):** `labels = impl-qa AND status = "To Do"` — autotake the head ticket (move to In Progress when execution starts), run its linked `runs/<id>/` folder charter. Do not leave impl-qa queued while retest JQL still has open tickets.
+4. **impl-qa factory queue (when retest scope is empty):** `labels = impl-qa AND status = "To Do"` — autotake the head ticket (move to In Progress when execution starts), run its linked `runs/<id>/` folder charter. **Never start impl-qa while retest JQL has open V/T tickets.** Do not leave impl-qa queued while retest JQL still has open tickets.
+
+5. **File confirmed defects during regression/retest:** any `confirmed-defect` or sign-off-blocking environmental issue → `create_jira_issue.py` immediately with `--labels <slug>,confirmed-defect` (script auto-adds **`impl-dev`** for dev factory autotake; dedupe JQL first). Comment on the feature ticket; the **bug is a separate issue** under the epic.
 
 **Not on every tick:** security testing — run only on **`exploratory`** and **`regression`** run cycles (skill `qa-security`). Loop ticks are Jira retest + lightweight exploratory slices, not security cycles.
 
@@ -40,11 +42,110 @@ When unsure, the verdict is FAIL/needs-info, not Done.
 
 **Server per tick:** start it (if down) and stop it after (only what we started) — see the `qa-server` skill.
 
+**Test data (feature retests on shared STG):** before assign/relocate/lifecycle write tests, run
+`scripts/test_data_prep.sh <slug> [--stg]`; after, `scripts/test_data_cleanup.sh`. No free station
+without prep ⇒ **BLOCKED_SETUP**, not product FAIL. Skill: `qa-test-data`. Do not force Jira Done
+from one corrected run — follow normal DoD + recording.
+
 **Factory ledger (each tick):** log tick boundaries and material events via
-`scripts/factory_log.sh <slug> _loop tick_start run=<run-id>` at tick start and
-`tick_end` at tick end; log per-ticket `verdict`, `transition`, `bug_filed`, and
-`regression_reopen` events as they happen. Summarize offline with
-`scripts/factory_status.sh <slug>`. Schema: `projects/<slug>/factory/schema.md`.
+`scripts/factory_log.sh <slug> …`; schema: `projects/<slug>/factory/schema.md`.
+
+### Per-ticket DoD checklist (mandatory — gate enforced)
+
+**Do not log `tick_end` until `factory_tick_gate.sh` exits 0.** Smoke tests and Jira
+comments alone are **not** tick-complete.
+
+**Tick workflow (strict order):**
+
+1. `tick_start` + `scope_check` (all Jira keys in scope)
+2. **If `scope_check count > 0`:** for **each** scope ticket **before browser work**:
+   - `./scripts/jira_handoff.sh <slug> <KEY> --log` → factory `handoff_read`
+   - **`./scripts/openspec_read.sh <slug> --ticket <KEY>`** (skill `qa-openspec`) — read governing REQ/scenarios; validate test design
+   - Derive 3–5 test steps from **OpenSpec + handoff** → note in `run.md` per-ticket checklist
+   - `./scripts/stg_buildid.sh <slug> <handoff-sha>` when handoff cites buildId
+3. For **each** scope ticket — execute checklist → log `dod_check` with terminal verdict
+4. `./scripts/factory_tick_gate.sh <slug>` — must print `GATE OPEN`
+5. **Only if scope empty OR all scope tickets have terminal `dod_check`:** exploratory slice
+6. `tick_end` + update `run.md`
+
+**Scope-non-empty rule (gate enforced):** when `scope_check count > 0`, **do not** log
+`exploratory` or `tick_end` until every scope key has `handoff_read` + terminal `dod_check`.
+Generic STG smoke is **prep only**, not a substitute for feature retest.
+
+**Never re-arm the loop sleeper until step 4 passes** (unless user explicitly requests monitor-only mode).
+
+**Per-ticket checklist** (log one `dod_check` per key; copy into `run.md` each tick):
+
+| Step | Requirement | Ledger |
+|------|-------------|--------|
+| 0 | `jira_handoff.sh <slug> <KEY> --log` | `handoff_read` |
+| 0a | `openspec_read.sh <slug> --ticket <KEY>` — validate PF/TC vs OpenSpec | `openspec_read=true` in `dod_check` |
+| 0b | Write 3–5 test steps in `run.md` from **OpenSpec + handoff** | (run.md checklist) |
+| 1 | Two-pass retest on **canonical source** (detail / audit / API) | `retest_attempted=true`, `feature_steps_executed=true` |
+| 2 | `stg_buildid.sh` → MATCH or MATCH_AHEAD (or N/A / SKIP) | `buildid_gate` |
+| 3 | `record_and_attach.sh` → Jira (unless `recording_exempt` pure-CI) | `recording_attached=true` |
+| 4 | Jira `transition` + comment: **Done** if PASS; **In Progress** if FAIL or blocked | `transition` event |
+
+**RETURN_DEV / FAIL** additionally require in `dod_check`: `retest_attempted=true`,
+`alternate_locators_tried=true` (RETURN_DEV only), `feature_steps_executed=true` or `steps_tried=…`.
+`jira_return_in_progress.py` requires `--steps-tried` (summary of what was attempted).
+
+**V/T terminal outcomes (mandatory — no third state):**
+
+A ticket in `Validate/Testing` must end the tick as either **Done** or **In Progress**. Logging
+`BLOCKED` while Jira still shows V/T is **forbidden**.
+
+**Before declaring blocked**, exhaust alternate verification:
+- other locators (`data-testid`, aria, role, text, CSS)
+- native `.click()` / `evaluate` (MCP `browser_click` often misses server actions)
+- manual two-pass on canonical source if automation cannot drive one control
+
+If still blocked:
+1. **File** a separate Jira issue (`create_jira_issue.py` for product bug; impl-dev task for missing testids/locators)
+2. **Return** feature ticket: `python3 scripts/jira_return_in_progress.py --project projects/<slug> --key <KEY> --reason "…" --steps-tried "1. … 2. …" --handoff-file runs/<run>/retest-fail-<KEY>-tick<N>.md [--dev-ticket <KEY>]`
+3. Log `transition to=In Progress` + `dod_check verdict=RETURN_DEV` with `openspec_read=true`, `dev_handoff=<path>`
+
+**Terminal `dod_check` verdicts only:**
+
+| Verdict | When |
+|---------|------|
+| `DONE` | Full DoD met (two-pass, buildId, recording) |
+| `FAIL` | Product defect confirmed |
+| `RETURN_DEV` | Blocked — returned to In Progress + dev/bug ticket |
+| `SKIP_DEV` | **Only** when ticket is **dev-owned** and STG/build **unchanged** — awaiting dev handoff |
+
+**FORBIDDEN:** `SKIP_DEV` on QA-owned **In Progress** tickets where QA already has PASS evidence. If PASS + unchanged build → **re-run DoD** (prep, automation, recording) and **transition Done/V/T** same tick. Never log 5+ consecutive monitor SKIP_DEV ticks without execution.
+
+| Verdict | When | Required fields |
+|---------|------|-----------------|
+| `DONE` | All DoD met | `two_pass=true`, `canonical_source=true`, `buildid_gate`, `recording_attached=true` (or `recording_exempt=true`) |
+| `FAIL` | Product defect | `bug_filed=<KEY>`, `transition` to=In Progress |
+| `RETURN_DEV` | QA/dev blocker after alt locators tried | `bug_filed` or `dev_ticket`, `transition` to=In Progress, `retest_attempted=true`, `alternate_locators_tried=true`, `feature_steps_executed=true` |
+| `SKIP_DEV` | Ticket already **In Progress** (dev-owned) — not V/T retest | `jira_status=In Progress`, `note` |
+
+**Forbidden at tick_end:** `PARTIAL`, `DEFERRED`, `PASS_PENDING`, `BLOCKED`, “PASS (recording pending)” in `run.md`.
+
+**Monitor skip policy:** skip automation **only** when every scope ticket already has `recording_attached`
+on a prior tick **or** explicit user monitor mode. Open V/T without recordings → **no skip**.
+
+```bash
+./scripts/factory_log.sh <slug> _loop tick_start run=<run-id>
+./scripts/factory_log.sh <slug> _loop scope_check keys=ABC-1,ABC-2 count=2
+./scripts/jira_handoff.sh <slug> ABC-1 --log
+./scripts/jira_handoff.sh <slug> ABC-2 --log
+./scripts/factory_log.sh <slug> ABC-1 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true retest_attempted=true
+./scripts/factory_log.sh <slug> ABC-1 transition to=Done
+python3 scripts/jira_return_in_progress.py --project projects/<slug> --key ABC-2 \
+  --reason "Control not reachable by automation" --dev-ticket ABC-9 \
+  --steps-tried "1. handoff read 2. test_data_prep 3. primary flow 4. alt locators"
+./scripts/factory_log.sh <slug> ABC-2 transition to=In\ Progress reason="locator gap"
+./scripts/factory_log.sh <slug> ABC-2 dod_check verdict=RETURN_DEV dev_ticket=ABC-9 transition=In\ Progress retest_attempted=true alternate_locators_tried=true feature_steps_executed=true
+./scripts/factory_tick_gate.sh <slug>
+./scripts/factory_log.sh <slug> _loop exploratory area="…" result=PASS
+./scripts/factory_log.sh <slug> _loop tick_end run=<run-id> gate=open
+```
+
+Summarize offline with `scripts/factory_status.sh <slug>`.
 Dev factory events (`agent=dev`: pick, merge, deploy, handoff_vt) use the same script when a dev loop is enabled.
 
 ## Run the loop yourself (Cursor chat — not bash)
@@ -96,9 +197,11 @@ Run from the **engine repo root** (where `scripts/` lives):
 
 ```bash
 ./scripts/jira_status.sh <slug>
+./scripts/jira_handoff.sh <slug> <KEY> [--log]   # mandatory before V/T retest when scope non-empty
 ./scripts/stg_buildid.sh <slug> <merge-sha>
 ./scripts/server_ctl.sh <slug> status
 ./scripts/factory_status.sh <slug>
+./scripts/factory_tick_gate.sh <slug>    # before tick_end — must exit 0
 ./scripts/run_automation.sh <slug> --stg
 ```
 

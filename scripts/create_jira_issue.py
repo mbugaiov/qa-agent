@@ -83,7 +83,12 @@ def main() -> None:
     desc.add_argument("--description", help="issue description text")
     desc.add_argument("--description-file", help="file whose contents become the description")
     ap.add_argument("--severity", choices=list(SEVERITY_LABEL), help="S1..S4 (adds label; maps priority with --set-priority)")
-    ap.add_argument("--labels", default="", help="comma-separated labels (always adds 'qa-agent')")
+    ap.add_argument("--labels", default="", help="comma-separated labels (always adds 'qa-agent'; confirmed-defect also adds 'impl-dev')")
+    ap.add_argument(
+        "--no-impl-dev",
+        action="store_true",
+        help="do not add impl-dev (default: add when labels include confirmed-defect)",
+    )
     ap.add_argument("--priority", help="explicit Jira priority name (e.g. Medium)")
     ap.add_argument("--set-priority", action="store_true", help="set priority from --severity map")
     ap.add_argument("--issue-type", help="override issue type (default from env or 'Bug')")
@@ -137,6 +142,10 @@ def main() -> None:
     labels = ["qa-agent"] + [l.strip() for l in args.labels.split(",") if l.strip()]
     if args.severity:
         labels.append(SEVERITY_LABEL[args.severity])
+    # Confirmed bugs queue for dev factory autotake (parent=epic AND labels=impl-dev AND To Do).
+    if not args.no_impl_dev and any(l.lower() == "confirmed-defect" for l in labels):
+        if "impl-dev" not in labels:
+            labels.append("impl-dev")
 
     fields = {
         "project": {"key": project_key},

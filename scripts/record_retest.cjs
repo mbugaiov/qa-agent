@@ -30,6 +30,10 @@ const path = require('node:path');
       else if (s.do === 'fill') await page.fill(s.selector, s.value);
       else if (s.do === 'type') await page.type(s.selector, s.value, { delay: 40 });
       else if (s.do === 'click') await page.click(s.selector);
+      else if (s.do === 'clickIfVisible') {
+        const loc = page.locator(s.selector);
+        if (await loc.isVisible().catch(() => false)) await loc.click();
+      }
       else if (s.do === 'press') await page.press(s.selector || 'body', s.key);
       else if (s.do === 'wait') await page.waitForTimeout(s.ms || 1000);
       else if (s.do === 'waitFor') await page.waitForSelector(s.selector, { timeout: s.timeout || 8000 }).catch(() => {});

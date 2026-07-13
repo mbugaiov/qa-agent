@@ -36,7 +36,7 @@ RUNS="$ROOT/projects/$SLUG/factory/runs"
 mkdir -p "$RUNS"
 
 FILE="$RUNS/${TICKET}.jsonl"
-python3 - "$FILE" "$TICKET" "$EVENT" "$AGENT" "${ARGS[@]}" <<'PY'
+python3 - "$FILE" "$TICKET" "$EVENT" "$AGENT" ${ARGS+"${ARGS[@]}"} <<'PY'
 import json, sys, datetime, pathlib
 
 path, ticket, event, agent = sys.argv[1:5]
