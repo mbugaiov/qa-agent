@@ -28,8 +28,16 @@ jobs:
           BASE: ${{ github.base_ref }}
         run: |
           if [[ -z "${CURSOR_API_KEY:-}" ]]; then
-            echo "SKIP: CURSOR_API_KEY not configured — enable automated review in repo secrets"
-            echo "LGTM - no blocking issues found." > review.md
+            cat > review.md <<'EOF'
+          ## Summary
+          Automated review skipped — `CURSOR_API_KEY` repository secret is not configured.
+
+          ## Blocking issues
+          Configure `CURSOR_API_KEY` under Settings → Secrets and variables → Actions to enable PR code review.
+
+          ## Suggestions
+          None.
+          EOF
             exit 0
           fi
           git fetch origin "${BASE}" --quiet || true
