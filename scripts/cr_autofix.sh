@@ -42,6 +42,17 @@ if bash scripts/check_review_gate.sh "$REVIEW" >/dev/null 2>&1; then
   exit 0
 fi
 
+# PR-level cap in CI: count prior autofix commits on this branch
+if [[ "$CI" -eq 1 ]]; then
+  git fetch origin "$BASE" --quiet 2>/dev/null || true
+  AUTOFIX_COUNT=$(git log "origin/${BASE}..HEAD" --oneline 2>/dev/null | grep -c '\[cr-autofix\]' || true)
+  PR_CAP="${CR_AUTOFIX_PR_MAX:-2}"
+  if [[ "$AUTOFIX_COUNT" -ge "$PR_CAP" ]]; then
+    echo "cr_autofix: PR-level cap reached ($AUTOFIX_COUNT >= $PR_CAP) — escalate to human" >&2
+    exit 1
+  fi
+fi
+
 if [[ -z "${CURSOR_API_KEY:-}" ]]; then
   echo "ERROR: CURSOR_API_KEY required for auto-fix" >&2
   exit 1
@@ -108,8 +119,13 @@ git --no-pager diff origin/${BASE}...HEAD 2>/dev/null || git --no-pager diff HEA
       if ! git diff --quiet || ! git diff --cached --quiet; then
         git add -A
         git commit -m "fix(cr): address blocking review findings [cr-autofix]"
-        git push
+        if ! git push; then
+          echo "cr_autofix: git push failed" >&2
+          exit 1
+        fi
         echo "cr_autofix: pushed fix commit"
+      else
+        echo "cr_autofix: gate open but no file changes to commit"
       fi
     fi
     exit 0

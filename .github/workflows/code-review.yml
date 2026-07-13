@@ -93,6 +93,7 @@ jobs:
       needs.review.result == 'failure' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: write
       pull-requests: write
@@ -123,6 +124,7 @@ jobs:
           CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
           BASE: ${{ github.base_ref }}
           CR_AUTOFIX_MAX: "2"
+          CR_AUTOFIX_PR_MAX: "2"
         run: |
           if [[ -z "${CURSOR_API_KEY:-}" ]]; then
             echo "SKIP: CURSOR_API_KEY not set — cannot auto-fix"

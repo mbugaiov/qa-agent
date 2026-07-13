@@ -1,5 +1,5 @@
 ## Summary
-Only summary — no Blocking issues header (RQ-1647 CI failure mode).
+Only summary — no Blocking issues header (historical CI failure mode).
 
 ## Suggestions
 - nit

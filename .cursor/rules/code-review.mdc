@@ -65,7 +65,7 @@ After `review.md` is written, `scripts/check_review_gate.sh` parses `## Blocking
 
 When the gate fails, **do not merge manually** without fixing blockers:
 
-1. **CI:** workflow job `autofix` runs `scripts/cr_autofix.sh --ci` (max 2 attempts), commits `fix(cr): … [cr-autofix]`, pushes to the PR branch.
+1. **CI:** workflow job `autofix` runs `scripts/cr_autofix.sh --ci` (max 2 attempts per job, max 2 `[cr-autofix]` commits per PR), commits `fix(cr): … [cr-autofix]`, pushes to the PR branch.
 2. **Local / IDE:** rule `.cursor/rules/cr-autofix.mdc` — run `bash scripts/cr_autofix.sh --pr <N>` or fix from `review.md`, then `pre_merge_check` + `run_code_review.sh`.
 
 Procedural how-to: skill `qa-code-review` § CR auto-fix loop.

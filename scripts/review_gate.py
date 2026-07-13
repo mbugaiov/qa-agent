@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Parse Cursor code-review output for blocking issues (engine CR gate).
 
-Port of LRM lib/reviewGate.ts — pure parsing, no I/O except CLI wrapper.
+Pure parsing — no I/O except CLI wrapper. Fixture set covers historical CI failure modes.
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ NO_OUTPUT_PLACEHOLDER = re.compile(
     r"^Cursor review produced no output \(see build log above\)\.\s*$", re.I
 )
 
-# Historical RQ-1647 failure modes + clean passes (see tests/fixtures/review-gate/)
+# Historical failure modes + clean passes (see tests/fixtures/review-gate/)
 REVIEW_GATE_FIXTURES: dict[str, str] = {
     "lgtm.md": "pass",
     "blocking-none.md": "pass",

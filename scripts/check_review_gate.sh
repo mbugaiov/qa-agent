@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fail when Cursor review output has blocking issues (RQ-1647 pattern).
+# Fail when Cursor review output has blocking issues (structured review gate).
 #
 # Usage: scripts/check_review_gate.sh [review.md]
 # Exit 0 = pass (LGTM or Blocking issues: None). Exit 1 = blockers or malformed output.

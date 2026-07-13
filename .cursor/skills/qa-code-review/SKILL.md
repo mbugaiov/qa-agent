@@ -69,7 +69,7 @@ bash scripts/cr_autofix.sh --review review.md --base main
 
 The script runs `cursor-agent` to fix blockers, `pre_merge_check`, and re-review (max `CR_AUTOFIX_MAX=3`).
 
-**On GitHub PRs:** job `autofix` in `code-review.yml` runs automatically when review fails (max 2 CI attempts, then human).
+**On GitHub PRs:** job `autofix` in `code-review.yml` runs when review fails (max 2 attempts per job, max 2 `[cr-autofix]` commits per PR branch, then human).
 
 **Rules:** read `.cursor/rules/cr-autofix.mdc` — never fake LGTM; never weaken gates.
 
@@ -120,5 +120,5 @@ Engine PRs typically do not use factory ledger unless tracing cross-repo work.
 
 ## Not in scope
 
-- Reviewing **target application** code (LRM app, etc.) — that project's own CR pipeline
+- Reviewing **target application** code — use that project's own CR pipeline
 - Live QA / browser testing — skills `qa-loop`, `qa-test-execution`
