@@ -26,10 +26,11 @@ PATHS=(
 FAIL=0
 while IFS= read -r f; do
   [[ -z "$f" ]] && continue
+  [[ "$f" == "scripts/portability_check.sh" ]] && continue
   while IFS= read -r line; do
-    # Allow illustrative "e.g. lrm" in prose.
-    echo "$line" | grep -q 'e\.g\. `lrm`' && continue
-    echo "$line" | grep -q 'e\.g\. lrm' && continue
+    # Allow illustrative slug examples in prose.
+    echo "$line" | grep -q 'e\.g\. `<slug>`' && continue
+    echo "$line" | grep -q 'e\.g\. <slug>' && continue
     echo "portability leak: $line"
     FAIL=1
   done < <(git grep -nE "$FORBIDDEN" -- "$f" 2>/dev/null || true)

@@ -138,6 +138,18 @@ def gather_ledger(slug: str, start: date, end: date) -> dict:
 
 
 def gather_transcripts(start: date, end: date, workspace_glob: str | None) -> dict:
+    if not CURSOR_PROJECTS.is_dir():
+        return {
+            "available": False,
+            "tier": "C",
+            "metric": "context_proxy_not_tokens",
+            "reason": f"no Cursor projects dir at {CURSOR_PROJECTS}",
+            "sessions_scanned": 0,
+            "by_day": {},
+            "totals": {"user_turns": 0, "assistant_turns": 0, "transcript_bytes": 0},
+            "warning": "NOT LLM tokens — activity proxy only",
+        }
+
     roots = []
     if workspace_glob:
         roots = list(CURSOR_PROJECTS.glob(workspace_glob))
