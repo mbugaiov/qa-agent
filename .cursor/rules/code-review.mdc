@@ -1,0 +1,71 @@
+---
+description: Automated PR code review for the qa-agent engine — policy for cursor-agent on GitHub PRs and local run_code_review.sh. Blocking ## Blocking issues fail the pipeline via check_review_gate.sh.
+alwaysApply: false
+---
+
+# QA Agent engine — automated code review
+
+The GitHub PR workflow (`.github/workflows/code-review.yml`) runs headless
+`cursor-agent` on every PR. The workflow passes only a short prompt pointing
+here; this file is the **single source of truth** for review policy.
+
+## Scope
+
+- Review **only** the PR branch diff vs its base branch:
+  `git --no-pager diff origin/<base>...HEAD`
+- Engine files only — this repo ships the shared QA engine, not live project data.
+
+## What to enforce
+
+Read `AGENTS.md`, `PORTABILITY.md`, and `.cursor/rules/qa-engine.mdc`. Block on:
+
+1. **Live project data in git** — anything under `projects/<slug>/` except `projects/_template/`
+2. **Project-specific leaks** — product slugs, private paths, real Jira keys in engine files
+3. **Secrets** — tokens, `.env`, credentials in the diff
+4. **Missing tests** — new script/skill/rule behavior without coverage in `tests/run_tests.sh`
+5. **Portability** — hardcoded customer URLs, `/Users/...` paths, app-specific routes in `scripts/`, `templates/`, `.cursor/`
+6. **Factory/DoD drift** — `factory_tick_gate.sh` or `dod_check` schema changed without schema.md + tests
+7. **Correctness** — broken error paths, wrong exit codes, `set -u` traps on empty bash arrays
+
+Prioritise: **correctness · security · data-loss · missing/broken tests · portability leaks**, then maintainability.
+
+## Review focus by change type
+
+| Changed area | Check |
+|--------------|-------|
+| `scripts/` | Offline/no-op when unconfigured; slug-parameterized paths; tests in `run_tests.sh` |
+| `.cursor/skills/` | Valid frontmatter; referenced from `AGENTS.md` when user-facing |
+| `.cursor/rules/` | Engine constraints stay consistent with skills |
+| `projects/_template/` | Placeholders only; no live project copy-paste |
+| `.github/workflows/` | No secrets in YAML; `CURSOR_API_KEY` from secrets only |
+| `tests/` | Fixtures fictional; review-gate fixtures updated if parser changes |
+
+## Output (GitHub-flavoured markdown — exactly these sections)
+
+- `## Summary` — what the PR does, 1–3 sentences.
+- `## Blocking issues` — must-fix before merge; cite `file:line`. Write `None.` if clean.
+- `## Suggestions` — non-blocking; cite `file:line`.
+
+If there is nothing material to report, **skip the three sections** and output exactly:
+
+`LGTM - no blocking issues found.`
+
+Otherwise always emit all three sections (use `None.` when a section is empty).
+
+## Tone
+
+Concise; cite `file:line`. Do not restate the whole diff.
+
+## Pipeline gate
+
+After `review.md` is written, `scripts/check_review_gate.sh` parses `## Blocking issues`
+(or the LGTM single-line shortcut). Non-empty blockers **fail the PR**; suggestions alone do not.
+
+## Auto-fix loop
+
+When the gate fails, **do not merge manually** without fixing blockers:
+
+1. **CI:** workflow job `autofix` runs `scripts/cr_autofix.sh --ci` (max 2 attempts per job, max 2 `[cr-autofix]` commits per PR), commits `fix(cr): … [cr-autofix]`, pushes to the PR branch.
+2. **Local / IDE:** rule `.cursor/rules/cr-autofix.mdc` — run `bash scripts/cr_autofix.sh --pr <N>` or fix from `review.md`, then `pre_merge_check` + `run_code_review.sh`.
+
+Procedural how-to: skill `qa-code-review` § CR auto-fix loop.

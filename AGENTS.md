@@ -18,10 +18,12 @@ triage → report → (optional) file to Jira with evidence. One project = one s
 | A recurring/continuous QA loop tick | `qa-loop` |
 | Starting/stopping the app under test | `qa-server` |
 | Test data prep/cleanup before feature tests (STG congestion) | `qa-test-data` |
+| OpenSpec read + coverage gate before retest | `qa-openspec` |
 | Filing/validating in Jira (+ recordings, fields, isolation) | `qa-jira` |
 | Live-app security testing (rotating slice, loop + standalone) | `qa-security` |
 | Least-token way to do any op (Jira/Bitbucket/git/testing) | `token-efficient-ops` |
 | Token spend / usage per day (methodology + collection) | `usage-accounting` |
+| Engine PR code review (pre-merge gates + cursor-agent) | `qa-code-review` |
 | Security checklist categories (reference) | `templates/security-checklist.md` |
 | Always-on hard constraints | rules `.cursor/rules/qa-engine.mdc` + `token-efficiency.mdc` + `usage-accounting.mdc` + `qa-team.mdc` |
 | What external methodology was integrated and from where | `INTEGRATIONS.md` |

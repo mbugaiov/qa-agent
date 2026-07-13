@@ -34,4 +34,6 @@ Procedural how-to lives in skills: `qa-runs`, `qa-phases`, `qa-loop`, `qa-opensp
 (under `qa-agent/.cursor/skills/`). The portable spine is `qa-agent/AGENTS.md`.
 
 After changing any engine script, rule, skill, or template, run `bash tests/run_tests.sh`
-(offline self-tests) and keep it green before relying on the change.
+(offline self-tests) and keep it green before relying on the change. Before opening a PR,
+run `bash scripts/pre_merge_check.sh` (skill `qa-code-review`). If Code Review fails,
+follow `.cursor/rules/cr-autofix.mdc` and run `bash scripts/cr_autofix.sh` until the gate opens.

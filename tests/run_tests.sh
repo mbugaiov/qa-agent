@@ -112,7 +112,7 @@ EOF
 ./scripts/server_ctl.sh "$SLUG" sync 2>&1 | grep -qi "nothing to sync" && ok "sync no-ops when SERVER_GIT_SYNC unset" || no "sync gating"
 
 echo "== 9. Skills + rule frontmatter =="
-for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security token-efficient-ops usage-accounting; do
+for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security qa-openspec qa-test-data qa-code-review token-efficient-ops usage-accounting; do
   f=".cursor/skills/$s/SKILL.md"
   { grep -q "^name:" "$f" && grep -q "^description:" "$f"; } && ok "skill $s has name+description" || no "skill $s frontmatter"
 done
@@ -128,8 +128,20 @@ chmod +x scripts/portability_check.sh 2>/dev/null || true
 ./scripts/portability_check.sh && ok "portability_check clean" || no "portability_check leaks"
 have .github/workflows/ci.yml
 
+echo "== 9c. Projects isolation (no live project data in git) =="
+have scripts/projects_isolation_check.sh
+chmod +x scripts/projects_isolation_check.sh 2>/dev/null || true
+./scripts/projects_isolation_check.sh && ok "projects_isolation_check clean" || no "projects_isolation_check failed"
+# Negative probe: a fake live slug path must stay untrackable
+FAKE_LIVE="projects/isolation-probe-live/project.yaml"
+mkdir -p "projects/isolation-probe-live"
+printf 'name: probe\n' > "$FAKE_LIVE"
+git check-ignore -q "$FAKE_LIVE" && ok "live project paths are gitignored" || no "live project path not gitignored"
+git ls-files --error-unmatch "$FAKE_LIVE" >/dev/null 2>&1 && no "live project file must not be tracked" || ok "live project file not tracked"
+rm -rf "projects/isolation-probe-live"
+
 echo "== 10. AGENTS.md index points to real skills =="
-for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security token-efficient-ops usage-accounting; do
+for s in qa-runs qa-phases qa-loop qa-server qa-jira qa-security qa-openspec qa-test-data qa-code-review token-efficient-ops usage-accounting; do
   grep_ok "\`$s\`" AGENTS.md "AGENTS.md references skill $s"
 done
 
@@ -222,6 +234,135 @@ OUT=$(python3 scripts/collect_usage.py --slug "$SLUG" --days 7 --offline 2>&1)
 echo "$OUT" | grep -q "Usage report" && ok "collect_usage prints summary" || no "collect_usage summary"
 [[ -f "projects/$SLUG/factory/usage.json" ]] && ok "usage.json written" || no "usage.json missing"
 python3 -c "import json; d=json.load(open('projects/$SLUG/factory/usage.json')); assert d['methodology_version']; assert 'A_exact' in d['tiers']; assert 'D_estimated' in d['tiers']" && ok "usage.json schema valid" || no "usage.json schema"
+
+echo "== 13. Jira handoff + transitions (offline) =="
+have scripts/jira_handoff.sh
+have scripts/jira_handoff.py
+have scripts/jira_close_issue.py
+have scripts/jira_return_in_progress.py
+OUT=$(python3 scripts/jira_handoff.py --project "projects/$SLUG" --key TST-1 2>&1)
+echo "$OUT" | grep -qiE 'skipping|no-op|not configured' && ok "jira_handoff no-op when unconfigured" || no "jira_handoff gating (got: $OUT)"
+OUT=$(python3 scripts/jira_close_issue.py --project "projects/$SLUG" --key TST-1 --comment "selftest close" 2>&1)
+echo "$OUT" | grep -qiE 'skipping|no-op|not configured' && ok "jira_close_issue no-op when unconfigured" || no "jira_close_issue gating"
+OUT=$(python3 scripts/jira_return_in_progress.py --project "projects/$SLUG" --key TST-1 --reason "blocked" --steps-tried "step 1" 2>&1)
+echo "$OUT" | grep -qiE 'skipping|no-op|not configured' && ok "jira_return_in_progress no-op when unconfigured" || no "jira_return_in_progress gating"
+./scripts/jira_handoff.sh "$SLUG" TST-50 --log >/dev/null 2>&1
+[[ ! -f "projects/$SLUG/factory/runs/TST-50.jsonl" ]] && ok "jira_handoff --log skips ledger when Jira inactive" || no "jira_handoff must not log without Jira"
+cat > "projects/$SLUG/.secrets/jira.env" <<EOF
+JIRA_BASE_URL=https://test-co.atlassian.net
+JIRA_EMAIL=qa@test-co.io
+JIRA_API_TOKEN=tok_realish_123
+JIRA_PROJECT_KEY=TST
+EOF
+DRY=$(python3 scripts/jira_close_issue.py --project "projects/$SLUG" --key TST-1 --comment "done" --dry-run 2>&1)
+echo "$DRY" | grep -q 'dry-run' && ok "jira_close_issue dry-run" || no "jira_close_issue dry-run"
+DRY=$(python3 scripts/jira_return_in_progress.py --project "projects/$SLUG" --key TST-1 --reason "locator gap" --steps-tried "- tried role=button" --dry-run 2>&1)
+echo "$DRY" | grep -q 'dry-run' && ok "jira_return_in_progress dry-run" || no "jira_return_in_progress dry-run"
+
+echo "== 14. OpenSpec coverage gate =="
+have scripts/openspec_coverage_gate.py
+have scripts/openspec_read.sh
+mkdir -p "projects/$SLUG/requirements"
+printf '| REQ-AUTH-001 | login |\n| REQ-AUTH-002 | logout |\n| REQ-AUTH-003 | session |\n' > "projects/$SLUG/requirements/openspec-requirements.md"
+OS_RUN="projects/$SLUG/runs/2026-07-01-full-selftest"
+mkdir -p "$OS_RUN"
+printf '| REQ-AUTH-001 | SC | TC | manual | pass | notes | ✅ Pass |\n| REQ-AUTH-002 | SC | TC | manual | pass | notes | Gap — not run |\n| REQ-AUTH-003 | SC | TC | manual | pass | notes | ✅ Pass |\n' > "$OS_RUN/traceability-matrix.md"
+python3 scripts/openspec_coverage_gate.py "projects/$SLUG" --matrix "$OS_RUN/traceability-matrix.md" --min 0.90 >/dev/null 2>&1; [[ $? -ne 0 ]] && ok "openspec gate fails below 90%" || no "openspec gate should fail below threshold"
+python3 scripts/openspec_coverage_gate.py "projects/$SLUG" --matrix "$OS_RUN/traceability-matrix.md" --min 0.65 >/dev/null 2>&1 && ok "openspec gate opens at 65%" || no "openspec gate should pass at 65%"
+printf '| REQ-AUTH-001 | SC | TC | manual | pass | notes | ✅ Pass |\n| REQ-AUTH-002 | SC | TC | manual | pass | notes | ✅ Pass |\n| REQ-AUTH-003 | SC | TC | manual | pass | notes | ✅ Pass |\n' > "$OS_RUN/traceability-matrix.md"
+python3 scripts/openspec_coverage_gate.py "projects/$SLUG" --matrix "$OS_RUN/traceability-matrix.md" --min 0.90 >/dev/null 2>&1 && ok "openspec gate passes at 90% with full matrix" || no "openspec gate 90% pass"
+OS_LATEST="projects/$SLUG/runs/2099-01-01-full-latest-matrix"
+mkdir -p "$OS_LATEST"
+cp "$OS_RUN/traceability-matrix.md" "$OS_LATEST/traceability-matrix.md"
+python3 scripts/openspec_coverage_gate.py "projects/$SLUG" --min 0.90 >/dev/null 2>&1 && ok "openspec gate finds latest matrix" || no "openspec gate latest matrix"
+
+echo "== 15. OpenSpec read (offline fixture) =="
+OSWT="projects/$SLUG/.openspec-fixture"
+rm -rf "$OSWT"
+mkdir -p "$OSWT/openspec/specs/auth"
+printf '# Auth capability\n\nWHEN user logs in THEN dashboard loads.\n' > "$OSWT/openspec/specs/auth/spec.md"
+cat > "projects/$SLUG/.secrets/server.env" <<EOF
+SERVER_URL=http://localhost:59999
+SERVER_GIT_WORKTREE=$ROOT/$OSWT
+EOF
+OUT=$(./scripts/openspec_read.sh "$SLUG" --cap auth 2>&1)
+echo "$OUT" | grep -qi "Auth capability" && ok "openspec_read prints spec excerpt" || no "openspec_read output"
+echo "$OUT" | grep -q "openspec/specs/auth/spec.md" && ok "openspec_read cites spec path" || no "openspec_read path"
+
+echo "== 16. Test-data scripts (offline gating) =="
+have scripts/test_data_prep.sh
+have scripts/test_data_cleanup.sh
+OUT=$(./scripts/test_data_prep.sh "$SLUG" 2>&1); EC=$?
+echo "$OUT" | grep -qi "Prep spec not found" && [[ $EC -ne 0 ]] && ok "test_data_prep requires project spec" || no "test_data_prep should refuse missing spec"
+OUT=$(./scripts/test_data_cleanup.sh "$SLUG" 2>&1); EC=$?
+echo "$OUT" | grep -qi "Cleanup spec not found" && [[ $EC -ne 0 ]] && ok "test_data_cleanup requires project spec" || no "test_data_cleanup should refuse missing spec"
+
+echo "== 17. Factory tick gate — FAIL and SKIP_DEV =="
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-extra >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-200 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-200 handoff_read >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-200 transition to=In\ Progress reason=regression >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-200 dod_check verdict=FAIL reason=regression bug_filed=TST-300 openspec_read=true dev_handoff=handoff/TST-200.md retest_attempted=true feature_steps_executed=true two_pass=true transition=In\ Progress >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" --keys TST-200 >/dev/null && ok "factory_tick_gate accepts FAIL with full DoD" || no "factory_tick_gate FAIL terminal"
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-ok >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-201 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-201 handoff_read >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-201 dod_check verdict=SKIP_DEV note="dev still coding" jira_status=In\ Progress >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" --keys TST-201 >/dev/null && ok "factory_tick_gate accepts SKIP_DEV in progress" || no "factory_tick_gate SKIP_DEV"
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-bad >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-202 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-202 handoff_read >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-202 dod_check verdict=SKIP_DEV note="wrong status" jira_status=Validate/Testing >/dev/null
+GATE_SKIP2=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-202 2>&1)
+echo "$GATE_SKIP2" | grep -qi "SKIP_DEV" && ok "factory_tick_gate rejects SKIP_DEV outside In Progress" || no "factory_tick_gate SKIP_DEV status guard"
+
+echo "== 18. Code review gate =="
+have scripts/review_gate.py
+have scripts/check_review_gate.sh
+have scripts/check_review_gate_fixtures.sh
+have scripts/pre_merge_check.sh
+have .cursor/rules/code-review.mdc
+have .cursor/skills/qa-code-review/SKILL.md
+have .github/workflows/code-review.yml
+have .github/pull_request_template.md
+grep_ok "Blocking issues" .cursor/rules/code-review.mdc "code-review rule has blocking section contract"
+grep_ok "check_review_gate" .cursor/rules/code-review.mdc "code-review rule references gate script"
+chmod +x scripts/check_review_gate.sh scripts/check_review_gate_fixtures.sh scripts/pre_merge_check.sh scripts/run_code_review.sh 2>/dev/null || true
+./scripts/check_review_gate.sh tests/fixtures/review-gate/lgtm.md >/dev/null && ok "review gate passes LGTM fixture" || no "review gate LGTM"
+./scripts/check_review_gate.sh tests/fixtures/review-gate/blocking-items.md >/dev/null 2>&1; [[ $? -ne 0 ]] && ok "review gate fails on blockers" || no "review gate should fail blockers"
+./scripts/check_review_gate_fixtures.sh && ok "review gate fixtures" || no "review gate fixtures"
+python3 -c "
+import importlib.util
+spec = importlib.util.spec_from_file_location('review_gate', 'scripts/review_gate.py')
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+assert mod.is_lgtm_only('LGTM - no blocking issues found.')
+assert not mod.review_has_blockers('LGTM - no blocking issues found.')
+text = open('tests/fixtures/review-gate/blocking-items.md').read()
+assert mod.review_has_blockers(text)
+assert 'deliveryPipeline' in mod.extract_blocking_section(text)
+" && ok "review_gate python unit checks" || no "review_gate python unit checks"
+have scripts/cr_autofix.sh
+have scripts/fetch_pr_review.sh
+have .cursor/rules/cr-autofix.mdc
+grep_ok "cr_autofix" .cursor/rules/code-review.mdc "code-review references autofix"
+grep_ok "Max 3 attempts" .cursor/rules/cr-autofix.mdc "cr-autofix has attempt cap"
+bash scripts/check_review_gate.sh tests/fixtures/review-gate/blocking-items.md >/dev/null 2>&1
+OUT=$(env -u CURSOR_API_KEY bash scripts/cr_autofix.sh --review 2>&1); EC=$?
+echo "$OUT" | grep -qi "Usage: --review" && [[ $EC -ne 0 ]] && ok "cr_autofix rejects missing --review value" || no "cr_autofix arg validation"
+OUT=$(env -u CURSOR_API_KEY bash scripts/cr_autofix.sh --review tests/fixtures/review-gate/blocking-items.md 2>&1); EC=$?
+echo "$OUT" | grep -qi "auto-fix" && [[ $EC -ne 0 ]] && ok "cr_autofix requires agent key offline" || no "cr_autofix gating"
+grep_ok "committed fixes locally" scripts/cr_autofix.sh "cr_autofix commits before re-review"
+grep_ok "last | .body" scripts/fetch_pr_review.sh "fetch_pr_review uses full comment body"
+python3 - <<'PY' && ok "fetch_pr_review comment parse offline" || no "fetch_pr_review parse"
+from pathlib import Path
+body = "<!-- qa-agent-cursor-review -->\n## Cursor automated review\n\n## Summary\nok\n## Blocking issues\nNone.\n"
+if "<!-- qa-agent-cursor-review -->" in body:
+    body = body.split("<!-- qa-agent-cursor-review -->", 1)[1]
+if "## Cursor automated review" in body:
+    body = body.split("## Cursor automated review", 1)[1]
+assert "Blocking issues" in body and "None" in body
+PY
 
 echo ""
 echo "RESULT: $PASS passed, $FAIL failed"
