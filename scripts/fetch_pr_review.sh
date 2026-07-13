@@ -16,26 +16,27 @@ if [[ -z "$PR" ]]; then
   }
 fi
 
-TMP=$(mktemp)
-trap 'rm -f "$TMP"' EXIT
+BODY=$(gh pr view "$PR" --comments --json comments -q \
+  '[.comments[] | select(.body | contains("qa-agent-cursor-review"))] | last | .body // empty')
 
-gh pr view "$PR" --comments --json comments -q \
-  '.comments[] | select(.body | contains("qa-agent-cursor-review")) | .body' \
-  | tail -1 > "$TMP"
+if [[ -z "$BODY" ]]; then
+  echo "No CR comment found on PR #$PR" >&2
+  exit 1
+fi
 
-python3 - "$OUT" "$TMP" <<'PY'
+printf '%s' "$BODY" | python3 - "$OUT" <<'PY'
 import sys
 from pathlib import Path
-raw = Path(sys.argv[2]).read_text(encoding="utf-8")
-if not raw.strip():
+body = sys.stdin.read()
+if not body.strip():
     print("No CR comment found", file=sys.stderr)
     sys.exit(1)
-body = raw
 marker = "<!-- qa-agent-cursor-review -->"
 if marker in body:
     body = body.split(marker, 1)[1]
 if "## Cursor automated review" in body:
     body = body.split("## Cursor automated review", 1)[1]
-Path(sys.argv[1]).write_text(body.strip() + "\n", encoding="utf-8")
-print(f"Wrote {sys.argv[1]} from PR comment")
+path = sys.argv[1]
+Path(path).write_text(body.strip() + "\n", encoding="utf-8")
+print(f"Wrote {path} from PR comment")
 PY

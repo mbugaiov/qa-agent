@@ -105,28 +105,39 @@ git --no-pager diff origin/${BASE}...HEAD 2>/dev/null || git --no-pager diff HEA
     continue
   fi
 
+  # CI: commit fixes before re-review so origin/${BASE}...HEAD includes them; push only if gate opens.
+  if [[ "$CI" -eq 1 ]]; then
+    git config user.name "github-actions[bot]"
+    git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+      git add -A
+      if git log -1 --pretty=%s 2>/dev/null | grep -q '\[cr-autofix\]'; then
+        git commit --amend -m "fix(cr): address blocking review findings [cr-autofix]"
+      else
+        git commit -m "fix(cr): address blocking review findings [cr-autofix]"
+      fi
+      echo "cr_autofix: committed fixes locally (pre re-review)"
+    fi
+  fi
+
   echo "== re-review =="
   git fetch origin "$BASE" --quiet 2>/dev/null || true
-  RPROMPT="Follow .cursor/rules/code-review.mdc. Review ONLY git diff origin/${BASE}...HEAD — produce exactly the required output sections."
+  if [[ "$CI" -eq 1 ]]; then
+    RPROMPT="Follow .cursor/rules/code-review.mdc. Review ONLY git diff origin/${BASE}...HEAD (includes the fix commit) — produce exactly the required output sections."
+  else
+    RPROMPT="Follow .cursor/rules/code-review.mdc. Review ALL pending changes: git diff origin/${BASE}...HEAD plus git diff and git diff --cached for unstaged/staged fixes — produce exactly the required output sections."
+  fi
   cursor-agent --force --api-key "$CURSOR_API_KEY" --output-format text -p "$RPROMPT" > "$REVIEW" || true
   [[ -s "$REVIEW" ]] || echo "Cursor review produced no output (see build log above)." > "$REVIEW"
 
   if bash scripts/check_review_gate.sh "$REVIEW"; then
     echo "cr_autofix: gate open after attempt $attempt"
     if [[ "$CI" -eq 1 ]]; then
-      git config user.name "github-actions[bot]"
-      git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      if ! git diff --quiet || ! git diff --cached --quiet; then
-        git add -A
-        git commit -m "fix(cr): address blocking review findings [cr-autofix]"
-        if ! git push; then
-          echo "cr_autofix: git push failed" >&2
-          exit 1
-        fi
-        echo "cr_autofix: pushed fix commit"
-      else
-        echo "cr_autofix: gate open but no file changes to commit"
+      if ! git push; then
+        echo "cr_autofix: git push failed" >&2
+        exit 1
       fi
+      echo "cr_autofix: pushed fix commit"
     fi
     exit 0
   fi

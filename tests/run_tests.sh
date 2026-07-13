@@ -350,6 +350,8 @@ grep_ok "Max 3 attempts" .cursor/rules/cr-autofix.mdc "cr-autofix has attempt ca
 bash scripts/check_review_gate.sh tests/fixtures/review-gate/blocking-items.md >/dev/null 2>&1
 OUT=$(bash scripts/cr_autofix.sh --review tests/fixtures/review-gate/blocking-items.md 2>&1); EC=$?
 echo "$OUT" | grep -qi "auto-fix" && [[ $EC -ne 0 ]] && ok "cr_autofix requires agent key offline" || no "cr_autofix gating"
+grep_ok "committed fixes locally" scripts/cr_autofix.sh "cr_autofix commits before re-review"
+grep_ok "last | .body" scripts/fetch_pr_review.sh "fetch_pr_review uses full comment body"
 
 echo ""
 echo "RESULT: $PASS passed, $FAIL failed"
