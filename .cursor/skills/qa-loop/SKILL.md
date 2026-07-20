@@ -57,8 +57,17 @@ comments alone are **not** tick-complete.
 
 **Tick workflow (strict order):**
 
-1. `tick_start` + `scope_check` (all Jira keys in scope)
-2. **If `scope_check count > 0`:** for **each** scope ticket **before browser work**:
+0. **Scope (mandatory — never skip, never hardcode):**
+```bash
+eval "$(./scripts/jira_scope.sh <slug> --log --shell)"
+# Sets: count, SCOPE_COUNT, keys, SCOPE_KEYS — use either count or SCOPE_COUNT (both set).
+# --log writes scope_check to the factory ledger (required for factory_tick_gate.sh).
+echo "scope count=${SCOPE_COUNT:-$count} keys=${SCOPE_KEYS:-$keys}"
+```
+**Forbidden:** checking `$SCOPE_COUNT` without `--log --shell`; logging `scope_check count=0` by hand; skipping scope when Jira is configured.
+
+1. `tick_start` + scope step above (scope_check logged by `--log`)
+2. **If `count > 0` (or `SCOPE_COUNT > 0`):** for **each** scope ticket **before browser work**:
    - `./scripts/jira_handoff.sh <slug> <KEY> --log` → factory `handoff_read`
    - **`./scripts/openspec_read.sh <slug> --ticket <KEY>`** (skill `qa-openspec`) — read governing REQ/scenarios; validate test design
    - Derive 3–5 test steps from **OpenSpec + handoff** → note in `run.md` per-ticket checklist
@@ -130,7 +139,8 @@ on a prior tick **or** explicit user monitor mode. Open V/T without recordings �
 
 ```bash
 ./scripts/factory_log.sh <slug> _loop tick_start run=<run-id>
-./scripts/factory_log.sh <slug> _loop scope_check keys=ABC-1,ABC-2 count=2
+eval "$(./scripts/jira_scope.sh <slug> --log --shell)"
+# scope_check logged; count / SCOPE_COUNT available for branching
 ./scripts/jira_handoff.sh <slug> ABC-1 --log
 ./scripts/jira_handoff.sh <slug> ABC-2 --log
 ./scripts/factory_log.sh <slug> ABC-1 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true retest_attempted=true

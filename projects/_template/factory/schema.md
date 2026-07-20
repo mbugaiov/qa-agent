@@ -30,10 +30,24 @@ Each line is one JSON object (JSONL). All events include:
 | `exploratory` | Exploratory slice | `{ "area": "…" }` |
 | `security_slice` | Security checklist slice | `{ "topic": "…" }` |
 
-## DoD gate (`dod_check` + `factory_tick_gate.sh`)
+## DoD gate (`scope_check` + `dod_check` + `factory_tick_gate.sh`)
 
-**Before `tick_end`**, every scope ticket from the latest `scope_check` must have a `dod_check`
-event logged in the **current tick** (since last `tick_start`). Run:
+**Mandatory each tick (after `tick_start`):** log `scope_check` via Jira scope query — do **not**
+hand-write an empty scope or skip when Jira is configured:
+
+```bash
+eval "$(./scripts/jira_scope.sh <slug> --log --shell)"
+# --log appends scope_check {keys, count} to _loop.jsonl (required by the gate)
+```
+
+**Before `tick_end`**, `factory_tick_gate.sh` enforces:
+
+| Condition | Gate result |
+|-----------|-------------|
+| No `scope_check` since `tick_start` | **CLOSED** — run `jira_scope.sh … --log` |
+| `scope_check` with `count=0` and no keys | **OPEN** — empty scope; exploratory allowed (no `dod_check` required) |
+| `count>0` but keys missing | **CLOSED** — re-run `jira_scope.sh --log` |
+| Each scope key missing terminal `dod_check` | **CLOSED** — log per-ticket `dod_check` |
 
 ```bash
 ./scripts/factory_tick_gate.sh <slug>              # uses latest scope_check keys
@@ -116,7 +130,9 @@ Documented for cross-agent traceability; dev loop may call `factory_log.sh` when
 
 ```bash
 ./scripts/factory_log.sh <slug> _loop tick_start run=<run-id>
-./scripts/factory_log.sh <slug> _loop scope_check keys=RQ-1,RQ-2 count=2
+eval "$(./scripts/jira_scope.sh <slug> --log --shell)"   # mandatory scope_check
+# If count=0 → factory_tick_gate opens immediately (exploratory-only tick).
+# If count>0 → handoff + dod_check per key before gate:
 ./scripts/jira_handoff.sh <slug> RQ-1 --log
 ./scripts/factory_log.sh <slug> RQ-1 dod_check \
   verdict=DONE two_pass=true canonical_source=true \

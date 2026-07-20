@@ -40,6 +40,19 @@ OUT=$(./scripts/jira_status.sh "$SLUG" 2>&1); echo "$OUT" | grep -q inactive && 
 # create_jira_issue is a no-op (not error) when unconfigured
 OUT=$(python3 scripts/create_jira_issue.py --project projects/$SLUG --summary x --description y --severity S3 2>&1)
 echo "$OUT" | grep -qi "skipping" && ok "create_jira_issue no-op when unconfigured" || no "create should no-op (got: $OUT)"
+# Template jira.env.example values must no-op (exit 0 + scope_check), not call the API.
+mkdir -p "projects/$SLUG/.secrets"
+cp projects/_template/jira.env.example "projects/$SLUG/.secrets/jira.env"
+OUT=$(./scripts/jira_status.sh "$SLUG" 2>&1); echo "$OUT" | grep -q inactive && ok "jira_status inactive on template placeholders" || no "jira_status should be inactive for template jira.env"
+SCOPE_TMP=$(mktemp)
+python3 scripts/jira_scope.py --project "projects/$SLUG" --json --log >"$SCOPE_TMP" 2>/dev/null
+SCOPE_EC=$?
+[[ "$SCOPE_EC" -eq 0 ]] \
+  && python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d.get('inactive') is True and d.get('count')==0" "$SCOPE_TMP" \
+  && grep -qE '"event"[[:space:]]*:[[:space:]]*"scope_check"' "projects/$SLUG/factory/runs/_loop.jsonl" \
+  && ok "jira_scope no-op on template placeholder jira.env" \
+  || no "jira_scope must exit 0 + inactive + scope_check for template placeholders"
+rm -f "$SCOPE_TMP" "projects/$SLUG/.secrets/jira.env"
 
 echo "== 4. Jira active + dry-run payload =="
 cat > "projects/$SLUG/.secrets/jira.env" <<EOF
@@ -203,9 +216,62 @@ JSON=$(./scripts/factory_status.sh "$SLUG" --json 2>&1)
 echo "$JSON" | grep -q '"ticket_count": 2' && ok "factory_status --json" || no "factory_status json"
 [[ -f "projects/$SLUG/factory/runs/_loop.jsonl" ]] && ok "factory _loop.jsonl created" || no "factory log file"
 
+echo "== 12a. Jira scope shell exports =="
+eval "$(./scripts/jira_scope.sh "$SLUG" --shell)"
+[[ "${SCOPE_COUNT:-}" == "0" && "${count:-}" == "0" ]] && ok "jira_scope --shell sets count and SCOPE_COUNT" || no "jira_scope SCOPE_COUNT alias"
+[[ -n "${SCOPE_KEYS+x}" && -n "${keys+x}" ]] && ok "jira_scope --shell sets keys and SCOPE_KEYS" || no "jira_scope SCOPE_KEYS alias"
+python3 - <<'PY' && ok "jira_scope is_placeholder matches engine gate" || no "jira_scope is_placeholder"
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("jira_scope", "scripts/jira_scope.py")
+mod = importlib.util.module_from_spec(spec)
+sys.modules["jira_scope"] = mod
+spec.loader.exec_module(mod)
+assert mod.is_placeholder("https://your-company.atlassian.net")
+assert mod.is_placeholder("you@your-company.com")
+assert mod.is_placeholder("paste-atlassian-api-token-here")
+assert mod.is_placeholder("ABC")
+assert mod.is_placeholder("")
+assert not mod.is_placeholder("https://test-co.atlassian.net")
+assert not mod.is_placeholder("qa@test-co.io")
+assert not mod.is_placeholder("tok_realish_123")
+assert not mod.is_placeholder("TST")
+PY
+python3 - <<'PY' && ok "jira_scope default_jql uses project= not parent= for bare key" || no "jira_scope default_jql project key"
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("jira_scope", "scripts/jira_scope.py")
+mod = importlib.util.module_from_spec(spec)
+sys.modules["jira_scope"] = mod
+spec.loader.exec_module(mod)
+jql = mod.default_jql({"JIRA_PROJECT_KEY": "ABC"})
+assert "parent=ABC" not in jql, jql
+assert jql.startswith("project=ABC"), jql
+jql2 = mod.default_jql({"JIRA_EPIC_FOR_TASKS_BUGS": "https://x.atlassian.net/browse/ABC-123"})
+assert jql2.startswith("parent=ABC-123"), jql2
+jql3 = mod.default_jql({"JIRA_SCOPE_JQL": "labels = impl-qa"})
+assert jql3 == "labels = impl-qa"
+PY
+grep -q 'jira_scope.sh' projects/_template/factory/schema.md \
+  && grep -qi 'scope empty\|count=0' projects/_template/factory/schema.md \
+  && ok "factory schema.md documents scope_check / empty scope" \
+  || no "schema.md must document jira_scope --log and empty-scope GATE OPEN"
+grep -q 'RUN_PREP' scripts/run_automation.sh \
+  && grep -q '\[\[ "\$RUN_PREP" -eq 1 \]\]' scripts/run_automation.sh \
+  && ! grep -q 'USE_STG.*SUITE\|SUITE.*USE_STG' scripts/run_automation.sh \
+  && ok "run_automation prep is --prep opt-in only" \
+  || no "run_automation must not auto-prep on --stg alone"
+
 echo "== 12b. Factory tick gate =="
+# Fresh tick with no scope_check yet (prior sections may have logged one).
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-no-scope >/dev/null
 GATE_FAIL=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC=$?
-echo "$GATE_FAIL" | grep -qi "GATE CLOSED" && ok "factory_tick_gate closed without scope" || no "factory_tick_gate should close without scope"
+echo "$GATE_FAIL" | grep -qi "scope_check" && ok "factory_tick_gate closed without scope_check" || no "factory_tick_gate should close without scope_check"
+./scripts/jira_scope.sh "$SLUG" --log >/dev/null
+grep -qE '"event"[[:space:]]*:[[:space:]]*"scope_check"' "projects/$SLUG/factory/runs/_loop.jsonl" \
+  && ok "jira_scope --log writes scope_check" || no "jira_scope --log should append scope_check"
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-empty-scope >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys= count=0 >/dev/null
+GATE_EMPTY=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1)
+echo "$GATE_EMPTY" | grep -qi "scope empty" && ok "factory_tick_gate opens on count=0" || no "factory_tick_gate empty scope"
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-99,TST-100 count=2 >/dev/null
 GATE_FAIL2=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC2=$?
 echo "$GATE_FAIL2" | grep -qi "missing dod_check" && ok "factory_tick_gate requires dod_check" || no "factory_tick_gate dod_check requirement"
