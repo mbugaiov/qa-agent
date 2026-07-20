@@ -40,6 +40,19 @@ OUT=$(./scripts/jira_status.sh "$SLUG" 2>&1); echo "$OUT" | grep -q inactive && 
 # create_jira_issue is a no-op (not error) when unconfigured
 OUT=$(python3 scripts/create_jira_issue.py --project projects/$SLUG --summary x --description y --severity S3 2>&1)
 echo "$OUT" | grep -qi "skipping" && ok "create_jira_issue no-op when unconfigured" || no "create should no-op (got: $OUT)"
+# Template jira.env.example values must no-op (exit 0 + scope_check), not call the API.
+mkdir -p "projects/$SLUG/.secrets"
+cp projects/_template/jira.env.example "projects/$SLUG/.secrets/jira.env"
+OUT=$(./scripts/jira_status.sh "$SLUG" 2>&1); echo "$OUT" | grep -q inactive && ok "jira_status inactive on template placeholders" || no "jira_status should be inactive for template jira.env"
+SCOPE_TMP=$(mktemp)
+python3 scripts/jira_scope.py --project "projects/$SLUG" --json --log >"$SCOPE_TMP" 2>/dev/null
+SCOPE_EC=$?
+[[ "$SCOPE_EC" -eq 0 ]] \
+  && python3 -c "import json,sys; d=json.load(open(sys.argv[1])); assert d.get('inactive') is True and d.get('count')==0" "$SCOPE_TMP" \
+  && grep -qE '"event"[[:space:]]*:[[:space:]]*"scope_check"' "projects/$SLUG/factory/runs/_loop.jsonl" \
+  && ok "jira_scope no-op on template placeholder jira.env" \
+  || no "jira_scope must exit 0 + inactive + scope_check for template placeholders"
+rm -f "$SCOPE_TMP" "projects/$SLUG/.secrets/jira.env"
 
 echo "== 4. Jira active + dry-run payload =="
 cat > "projects/$SLUG/.secrets/jira.env" <<EOF
@@ -207,6 +220,22 @@ echo "== 12a. Jira scope shell exports =="
 eval "$(./scripts/jira_scope.sh "$SLUG" --shell)"
 [[ "${SCOPE_COUNT:-}" == "0" && "${count:-}" == "0" ]] && ok "jira_scope --shell sets count and SCOPE_COUNT" || no "jira_scope SCOPE_COUNT alias"
 [[ -n "${SCOPE_KEYS+x}" && -n "${keys+x}" ]] && ok "jira_scope --shell sets keys and SCOPE_KEYS" || no "jira_scope SCOPE_KEYS alias"
+python3 - <<'PY' && ok "jira_scope is_placeholder matches engine gate" || no "jira_scope is_placeholder"
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("jira_scope", "scripts/jira_scope.py")
+mod = importlib.util.module_from_spec(spec)
+sys.modules["jira_scope"] = mod
+spec.loader.exec_module(mod)
+assert mod.is_placeholder("https://your-company.atlassian.net")
+assert mod.is_placeholder("you@your-company.com")
+assert mod.is_placeholder("paste-atlassian-api-token-here")
+assert mod.is_placeholder("ABC")
+assert mod.is_placeholder("")
+assert not mod.is_placeholder("https://test-co.atlassian.net")
+assert not mod.is_placeholder("qa@test-co.io")
+assert not mod.is_placeholder("tok_realish_123")
+assert not mod.is_placeholder("TST")
+PY
 python3 - <<'PY' && ok "jira_scope default_jql uses project= not parent= for bare key" || no "jira_scope default_jql project key"
 import importlib.util, sys
 spec = importlib.util.spec_from_file_location("jira_scope", "scripts/jira_scope.py")

@@ -33,16 +33,25 @@ except ImportError:
     sys.exit("The 'requests' package is required: pip install requests")
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PLACEHOLDER = {"", "<atlassian api token>", "you@company.com", "https://<company>.atlassian.net"}
 STATUS_CLAUSE = 'status in ("In Progress", "Validate/Testing")'
 
 
-def log_scope_check(slug: str, keys: list[str], shell_mode: bool) -> None:
+def is_placeholder(v: str) -> bool:
+    """Match jira_status.sh / create_jira_issue.py inactive gating.
+
+    Template values in projects/_template/jira.env.example (your-company, paste-*, ABC)
+    must be treated as unconfigured — never call the API.
+    """
+    return (not v) or ("your-company" in v) or v.startswith("paste-") or v == "ABC"
+
+
+def log_scope_check(slug: str, keys: list[str]) -> None:
     script = os.path.join(ROOT, "scripts", "factory_log.sh")
+    # Always quiet: jira_scope owns stdout (--json/--shell/plain); ledger is the side effect.
     subprocess.run(
         [script, slug, "_loop", "scope_check", f"keys={','.join(keys)}", f"count={len(keys)}"],
         check=False,
-        stdout=subprocess.DEVNULL if shell_mode else None,
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
 
@@ -89,7 +98,15 @@ def main() -> int:
     base = cfg.get("JIRA_BASE_URL", "")
     email = cfg.get("JIRA_EMAIL", "")
     token = cfg.get("JIRA_API_TOKEN", "")
-    if base in PLACEHOLDER or email in PLACEHOLDER or token in PLACEHOLDER or not (base and email and token):
+    project_key = cfg.get("JIRA_PROJECT_KEY", "")
+    inactive = (
+        is_placeholder(base)
+        or is_placeholder(email)
+        or is_placeholder(token)
+        or is_placeholder(project_key)
+    )
+    if inactive:
+        # Offline/no-op when unconfigured (same contract as create_jira_issue.py).
         payload = {"keys": [], "count": 0, "jql": "", "inactive": True}
         if a.json:
             print(json.dumps(payload))
@@ -107,7 +124,7 @@ def main() -> int:
                 print("count=0")
                 print("inactive=1")
         if a.log:
-            log_scope_check(slug, [], a.shell)
+            log_scope_check(slug, [])
         return 0
 
     jql = a.jql or default_jql(cfg)
@@ -145,7 +162,7 @@ def main() -> int:
         print(f"jql={jql}")
 
     if a.log:
-        log_scope_check(slug, keys, a.shell)
+        log_scope_check(slug, keys)
     return 0
 
 
