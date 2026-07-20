@@ -70,14 +70,17 @@ def since_tick(ev):
 
 scope_keys = []
 scope_count = 0
+scope_check_found = False
 if keys_arg:
     scope_keys = [k.strip() for k in keys_arg.split(",") if k.strip()]
     scope_count = len(scope_keys)
+    scope_check_found = True
 else:
     for ev in reversed(loop_events):
         if not since_tick(ev):
             break
         if ev.get("event") == "scope_check":
+            scope_check_found = True
             d = ev.get("detail") or {}
             scope_keys = d.get("keys") or []
             if isinstance(scope_keys, str):
@@ -88,8 +91,19 @@ else:
                 scope_count = len(scope_keys)
             break
 
+if not scope_check_found:
+    print(
+        "GATE CLOSED: no scope_check since tick_start — run: ./scripts/jira_scope.sh <slug> --log --shell",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
+if scope_count == 0 and not scope_keys:
+    print("GATE OPEN — scope empty (count=0), exploratory allowed")
+    sys.exit(0)
+
 if not scope_keys:
-    print("GATE CLOSED: no scope keys — log scope_check or pass --keys", file=sys.stderr)
+    print("GATE CLOSED: scope_check count>0 but keys missing — re-run jira_scope.sh --log", file=sys.stderr)
     sys.exit(1)
 
 TERMINAL = {"DONE", "FAIL", "RETURN_DEV", "SKIP_DEV"}

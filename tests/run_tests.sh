@@ -203,9 +203,18 @@ JSON=$(./scripts/factory_status.sh "$SLUG" --json 2>&1)
 echo "$JSON" | grep -q '"ticket_count": 2' && ok "factory_status --json" || no "factory_status json"
 [[ -f "projects/$SLUG/factory/runs/_loop.jsonl" ]] && ok "factory _loop.jsonl created" || no "factory log file"
 
+echo "== 12a. Jira scope shell exports =="
+eval "$(./scripts/jira_scope.sh "$SLUG" --shell)"
+[[ "${SCOPE_COUNT:-}" == "0" && "${count:-}" == "0" ]] && ok "jira_scope --shell sets count and SCOPE_COUNT" || no "jira_scope SCOPE_COUNT alias"
+[[ -n "${SCOPE_KEYS+x}" && -n "${keys+x}" ]] && ok "jira_scope --shell sets keys and SCOPE_KEYS" || no "jira_scope SCOPE_KEYS alias"
+
 echo "== 12b. Factory tick gate =="
 GATE_FAIL=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC=$?
-echo "$GATE_FAIL" | grep -qi "GATE CLOSED" && ok "factory_tick_gate closed without scope" || no "factory_tick_gate should close without scope"
+echo "$GATE_FAIL" | grep -qi "scope_check" && ok "factory_tick_gate closed without scope_check" || no "factory_tick_gate should close without scope_check"
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-empty-scope >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys= count=0 >/dev/null
+GATE_EMPTY=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1)
+echo "$GATE_EMPTY" | grep -qi "scope empty" && ok "factory_tick_gate opens on count=0" || no "factory_tick_gate empty scope"
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-99,TST-100 count=2 >/dev/null
 GATE_FAIL2=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC2=$?
 echo "$GATE_FAIL2" | grep -qi "missing dod_check" && ok "factory_tick_gate requires dod_check" || no "factory_tick_gate dod_check requirement"
