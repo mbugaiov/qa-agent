@@ -9,6 +9,9 @@ Usage:
 Reads JIRA_SCOPE_JQL from projects/<slug>/.secrets/jira.env when set; otherwise
 derives from JIRA_EPIC_FOR_TASKS_BUGS with:
   parent = <EPIC> AND status in ("In Progress", "Validate/Testing")
+If no epic but JIRA_PROJECT_KEY is set:
+  project = <KEY> AND status in ("In Progress", "Validate/Testing")
+(Never uses a bare project key as parent= — parent expects an issue key.)
 
 Prints keys (comma-separated) and count on stdout; --json emits {"keys":[],"count":N,"jql":"..."}.
 With --log, appends scope_check to the factory ledger via factory_log.sh.
@@ -22,7 +25,6 @@ import re
 import shlex
 import subprocess
 import sys
-import urllib.parse
 
 try:
     import requests
@@ -32,6 +34,7 @@ except ImportError:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLACEHOLDER = {"", "<atlassian api token>", "you@company.com", "https://<company>.atlassian.net"}
+STATUS_CLAUSE = 'status in ("In Progress", "Validate/Testing")'
 
 
 def log_scope_check(slug: str, keys: list[str], shell_mode: bool) -> None:
@@ -64,10 +67,12 @@ def default_jql(cfg: dict[str, str]) -> str:
         return explicit
     epic_url = cfg.get("JIRA_EPIC_FOR_TASKS_BUGS", "")
     m = re.search(r"([A-Z][A-Z0-9]+-\d+)", epic_url)
-    epic = m.group(1) if m else cfg.get("JIRA_PROJECT_KEY", "")
-    if not epic:
-        return 'status in ("In Progress", "Validate/Testing")'
-    return f'parent={epic} AND status in ("In Progress", "Validate/Testing")'
+    if m:
+        return f"parent={m.group(1)} AND {STATUS_CLAUSE}"
+    project = cfg.get("JIRA_PROJECT_KEY", "").strip()
+    if project and re.fullmatch(r"[A-Z][A-Z0-9]+", project):
+        return f"project={project} AND {STATUS_CLAUSE}"
+    return STATUS_CLAUSE
 
 
 def main() -> int:

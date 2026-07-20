@@ -21,6 +21,9 @@ From the **engine repo root** (where `scripts/` lives):
 # STG (no local server)
 scripts/run_automation.sh <slug> --stg
 
+# STG + optional test-data prep (requires specs/test-data-prep.spec.js; otherwise skipped)
+scripts/run_automation.sh <slug> --stg --prep
+
 # Local app (sync + up + test + down when server.manage is true in project.yaml)
 scripts/run_automation.sh <slug>
 

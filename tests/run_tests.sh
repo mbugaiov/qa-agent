@@ -207,10 +207,38 @@ echo "== 12a. Jira scope shell exports =="
 eval "$(./scripts/jira_scope.sh "$SLUG" --shell)"
 [[ "${SCOPE_COUNT:-}" == "0" && "${count:-}" == "0" ]] && ok "jira_scope --shell sets count and SCOPE_COUNT" || no "jira_scope SCOPE_COUNT alias"
 [[ -n "${SCOPE_KEYS+x}" && -n "${keys+x}" ]] && ok "jira_scope --shell sets keys and SCOPE_KEYS" || no "jira_scope SCOPE_KEYS alias"
+python3 - <<'PY' && ok "jira_scope default_jql uses project= not parent= for bare key" || no "jira_scope default_jql project key"
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("jira_scope", "scripts/jira_scope.py")
+mod = importlib.util.module_from_spec(spec)
+sys.modules["jira_scope"] = mod
+spec.loader.exec_module(mod)
+jql = mod.default_jql({"JIRA_PROJECT_KEY": "ABC"})
+assert "parent=ABC" not in jql, jql
+assert jql.startswith("project=ABC"), jql
+jql2 = mod.default_jql({"JIRA_EPIC_FOR_TASKS_BUGS": "https://x.atlassian.net/browse/ABC-123"})
+assert jql2.startswith("parent=ABC-123"), jql2
+jql3 = mod.default_jql({"JIRA_SCOPE_JQL": "labels = impl-qa"})
+assert jql3 == "labels = impl-qa"
+PY
+grep -q 'jira_scope.sh' projects/_template/factory/schema.md \
+  && grep -qi 'scope empty\|count=0' projects/_template/factory/schema.md \
+  && ok "factory schema.md documents scope_check / empty scope" \
+  || no "schema.md must document jira_scope --log and empty-scope GATE OPEN"
+grep -q 'RUN_PREP' scripts/run_automation.sh \
+  && grep -q '\[\[ "\$RUN_PREP" -eq 1 \]\]' scripts/run_automation.sh \
+  && ! grep -q 'USE_STG.*SUITE\|SUITE.*USE_STG' scripts/run_automation.sh \
+  && ok "run_automation prep is --prep opt-in only" \
+  || no "run_automation must not auto-prep on --stg alone"
 
 echo "== 12b. Factory tick gate =="
+# Fresh tick with no scope_check yet (prior sections may have logged one).
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-no-scope >/dev/null
 GATE_FAIL=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC=$?
 echo "$GATE_FAIL" | grep -qi "scope_check" && ok "factory_tick_gate closed without scope_check" || no "factory_tick_gate should close without scope_check"
+./scripts/jira_scope.sh "$SLUG" --log >/dev/null
+grep -qE '"event"[[:space:]]*:[[:space:]]*"scope_check"' "projects/$SLUG/factory/runs/_loop.jsonl" \
+  && ok "jira_scope --log writes scope_check" || no "jira_scope --log should append scope_check"
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-empty-scope >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys= count=0 >/dev/null
 GATE_EMPTY=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1)
