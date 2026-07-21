@@ -1,6 +1,8 @@
-# QA Agent
+# Argus
 
-An agent-driven **manual QA** workspace: feed it **business requirements**, point it at a **live web app**, and it designs test cases, executes them in a visible browser, captures evidence, and produces a Markdown + DOCX report — instead of a human tester doing it by hand.
+**Argus** is the QA engine — this repository (`qa-agent`). An agent-driven **manual QA** workspace: feed it **business requirements**, point it at a **live web app**, and it designs test cases, executes them in a visible browser, captures evidence, and produces a Markdown + DOCX report — instead of a human tester doing it by hand.
+
+> **Naming:** Argus is the high-level product name (presentation: *Argus · QA*). Low-level identifiers stay unchanged: folder `qa-agent/`, skills `qa-*`, factory ledger `agent=qa`.
 
 Built as an orchestrator on top of existing QA skills (`qa-site-analysis`, `qa-test-execution`, `qa-report-generation`, `release-testing`, `docx-test-report`) **plus methodology integrated from `koldovsky/project-factory` and `openai/skills`**. It is **spec-driven**: business requirements are normalized into BDD scenarios (`SC-*`, Given/When/Then) from which test cases derive — chain `REQ → SC → TC → evidence`. Read **`SETUP.md`** to configure a project (Jira, creds, epic, server) and start your first run; **`AGENTS.md`** for the full loop; **`PORTABILITY.md`** for multi-repo layouts.
 
