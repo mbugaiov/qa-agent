@@ -1,8 +1,8 @@
-# QA Agent — Manual Testing by Business Requirements
+# Argus — QA engine (`qa-agent`)
 
-The agent runs **manual QA against a live web app, driven by business requirements**, instead of a
-human tester: ingest requirements → derive scenarios + test cases → execute in a **live browser** →
-triage → report → (optional) file to Jira with evidence. One project = one site; one task = one run.
+**Argus** is the product name for this repository and engine. The agent runs **manual QA against a live web app, driven by business requirements**, instead of a human tester: ingest requirements → derive scenarios + test cases → execute in a **live browser** → triage → report → (optional) file to Jira with evidence. One project = one site; one task = one run.
+
+> **Naming map:** Argus (brand) ≡ `qa-agent` repo ≡ factory `agent=qa`. Pantheon siblings live elsewhere: Hephaestus (dev) and Themis (review) in the app repo — not renamed here. Internal paths, skills, and scripts keep the `qa-*` prefix.
 
 > Operating role: follow `.cursor/rules/qa-team.mdc` (vendored) and the engine constraints in
 > `.cursor/rules/qa-engine.mdc` + `token-efficiency.mdc` (always-on). This file is the portable **spine**;
