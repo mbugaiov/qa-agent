@@ -311,6 +311,37 @@ grep -q 'ticket_tc' projects/_template/factory/schema.md \
 GATE_NO_TC=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-NOTC 2>&1); GATE_NO_TC_EC=$?
 echo "$GATE_NO_TC" | grep -qi "persisted TC" && [[ $GATE_NO_TC_EC -ne 0 ]] \
   && ok "factory_tick_gate closed without persisted TC" || no "factory_tick_gate TC requirement"
+# (a) pre-existing TC file without a Jira line — must heal marker + index
+mkdir -p "projects/$SLUG/test-cases"
+cat > "projects/$SLUG/test-cases/TC-TST-HEAL.md" <<'EOF'
+# TC-TST-HEAL — orphan without Jira
+
+- **Type**: Acceptance
+- **Priority**: P1
+
+## Steps
+  1. Placeholder
+
+## Expected
+Pass
+EOF
+./scripts/ticket_tc.sh "$SLUG" TST-HEAL --title "heal orphan" >/dev/null \
+  && grep -qE '^\s*-\s*\*\*Jira:\*\*\s*TST-HEAL' "projects/$SLUG/test-cases/TC-TST-HEAL.md" \
+  && grep -qE '\| TST-HEAL \|' "projects/$SLUG/project-memory.md" \
+  && ok "ticket_tc heals existing file missing Jira line" || no "ticket_tc heal orphan file"
+# (b) shorter key after longer key — exact cell match, not substring
+./scripts/ticket_tc.sh "$SLUG" TST-10 --title "longer key ten" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-1 --title "shorter key one" >/dev/null
+grep -qE '\| TST-10 \|' "projects/$SLUG/project-memory.md" \
+  && grep -qE '\| TST-1 \|' "projects/$SLUG/project-memory.md" \
+  && ok "ticket_tc indexes TST-1 and TST-10 as distinct rows" || no "ticket_tc substring key collision"
+# (c) --link onto TC that already has a different Jira key
+./scripts/ticket_tc.sh "$SLUG" TST-LINK-A --title "shared TC primary" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-LINK-B --link TC-TST-LINK-A >/dev/null \
+  && grep -qE '^\s*-\s*\*\*Jira:\*\*\s*TST-LINK-A' "projects/$SLUG/test-cases/TC-TST-LINK-A.md" \
+  && grep -qE '^\s*-\s*\*\*Jira:\*\*\s*TST-LINK-B' "projects/$SLUG/test-cases/TC-TST-LINK-A.md" \
+  && grep -qE '\| TST-LINK-B \|' "projects/$SLUG/project-memory.md" \
+  && ok "ticket_tc --link adds second Jira key on shared TC" || no "ticket_tc --link second key"
 
 echo "== 12. Usage accounting =="
 have scripts/collect_usage.py
