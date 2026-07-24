@@ -70,7 +70,8 @@ echo "scope count=${SCOPE_COUNT:-$count} keys=${SCOPE_KEYS:-$keys}"
 2. **If `count > 0` (or `SCOPE_COUNT > 0`):** for **each** scope ticket **before browser work**:
    - `./scripts/jira_handoff.sh <slug> <KEY> --log` → factory `handoff_read`
    - **`./scripts/openspec_read.sh <slug> --ticket <KEY>`** (skill `qa-openspec`) — read governing REQ/scenarios; validate test design
-   - Derive 3–5 test steps from **OpenSpec + handoff** → note in `run.md` per-ticket checklist
+   - **`./scripts/ticket_tc.sh <slug> <KEY> --title "…" [--steps-file …] [--scenario SC-*] [--req REQ-*] --log`** — persist regression TC in `test-cases/` (idempotent); updates `project-memory.md` regression index
+   - Derive 3–5 test steps from **OpenSpec + handoff** → note in `run.md` per-ticket checklist (must match persisted TC)
    - `./scripts/stg_buildid.sh <slug> <handoff-sha>` when handoff cites buildId
 3. For **each** scope ticket — execute checklist → log `dod_check` with terminal verdict
 4. `./scripts/factory_tick_gate.sh <slug>` — must print `GATE OPEN`
@@ -89,7 +90,8 @@ Generic STG smoke is **prep only**, not a substitute for feature retest.
 |------|-------------|--------|
 | 0 | `jira_handoff.sh <slug> <KEY> --log` | `handoff_read` |
 | 0a | `openspec_read.sh <slug> --ticket <KEY>` — validate PF/TC vs OpenSpec | `openspec_read=true` in `dod_check` |
-| 0b | Write 3–5 test steps in `run.md` from **OpenSpec + handoff** | (run.md checklist) |
+| 0b | `ticket_tc.sh <slug> <KEY> --title "…" --log` — persist TC in `test-cases/` | factory `tc_linked` |
+| 0c | Write 3–5 test steps in `run.md` from **OpenSpec + handoff** (align with persisted TC) | (run.md checklist) |
 | 1 | Two-pass retest on **canonical source** (detail / audit / API) | `retest_attempted=true`, `feature_steps_executed=true` |
 | 2 | `stg_buildid.sh` → MATCH or MATCH_AHEAD (or N/A / SKIP) | `buildid_gate` |
 | 3 | `record_and_attach.sh` → Jira (unless `recording_exempt` pure-CI) | `recording_attached=true` |
@@ -208,6 +210,7 @@ Run from the **engine repo root** (where `scripts/` lives):
 ```bash
 ./scripts/jira_status.sh <slug>
 ./scripts/jira_handoff.sh <slug> <KEY> [--log]   # mandatory before V/T retest when scope non-empty
+./scripts/ticket_tc.sh <slug> <KEY> --title "…" [--log]   # persist regression TC (mandatory before retest)
 ./scripts/stg_buildid.sh <slug> <merge-sha>
 ./scripts/server_ctl.sh <slug> status
 ./scripts/factory_status.sh <slug>

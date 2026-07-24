@@ -14,6 +14,8 @@
 ### TC-AUTH-001 — Login with valid credentials
 - **Type**: Acceptance
 - **Priority**: P1
+- **Regression**: yes
+- **Jira:** <optional — e.g. RQ-123 when ticket-driven>
 - **Scenario**: SC-001
 - **REQ**: REQ-001
 - **Preconditions**: A valid user account exists; user is logged out.

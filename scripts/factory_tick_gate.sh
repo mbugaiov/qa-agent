@@ -31,13 +31,32 @@ done
 }
 
 RUNS="$ROOT/projects/$SLUG/factory/runs"
-[[ -d "$ROOT/projects/$SLUG" ]] || { echo "GATE CLOSED: no project projects/$SLUG" >&2; exit 1; }
+PROJECT="$ROOT/projects/$SLUG"
+[[ -d "$PROJECT" ]] || { echo "GATE CLOSED: no project projects/$SLUG" >&2; exit 1; }
 
-python3 - "$RUNS" "$KEYS" <<'PY'
-import json, sys, pathlib
+python3 - "$RUNS" "$PROJECT" "$KEYS" <<'PY'
+import json, re, sys, pathlib
 
 runs_dir = pathlib.Path(sys.argv[1])
-keys_arg = sys.argv[2].strip() if len(sys.argv) > 2 else ""
+project_dir = pathlib.Path(sys.argv[2])
+keys_arg = sys.argv[3].strip() if len(sys.argv) > 3 else ""
+
+JIRA_LINE = re.compile(r"^\s*-\s*\*\*Jira:\*\*\s*(\S+)", re.MULTILINE | re.IGNORECASE)
+
+def ticket_has_tc_file(key):
+    tc_dir = project_dir / "test-cases"
+    if not tc_dir.is_dir():
+        return False
+    key_u = key.upper()
+    for path in tc_dir.rglob("*.md"):
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        for m in JIRA_LINE.finditer(text):
+            if m.group(1).upper() == key_u:
+                return True
+    return False
 
 def load_events(path):
     if not path.is_file():
@@ -131,6 +150,10 @@ if effective_scope > 0:
     for key in scope_keys:
         if not ticket_has_event(key, "handoff_read"):
             errors.append(f"{key}: missing handoff_read — run scripts/jira_handoff.sh <slug> {key} --log")
+        if not ticket_has_tc_file(key):
+            errors.append(
+                f"{key}: missing persisted TC — run scripts/ticket_tc.sh <slug> {key} --title \"…\" [--log]"
+            )
 
 def has_transition(events, target="In Progress"):
     for ev in reversed(events):
