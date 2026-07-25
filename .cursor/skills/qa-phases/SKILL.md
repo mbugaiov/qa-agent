@@ -10,8 +10,8 @@ description: Detailed per-phase how-to for the QA Agent loop (Phase 1 Ingest →
 **Spec layer (lightweight spec-driven testing).** Scenarios `SC-*` bridge requirements and concrete tests.
 NOT OpenSpec capability specs (no `openspec validate`, deltas, change folders — we test a black-box app we
 don't own). They ARE testable Given/When/Then acceptance criteria, authored once per project (`specs/`),
-reused by every run. Chain: **REQ → SC → TC → evidence**. Tiny `targeted`/`smoke` runs may select existing
-SCs; `exploratory` runs may work charter-only and feed new SC ideas back afterward.
+reused by every run. Chain: **REQ → SC → TC → evidence**. Loop ticks persist ticket-driven TCs via
+`ticket_tc.sh` (OpenSpec + handoff); those TCs roll into **`regression`** run scope automatically.
 
 ### Phase 1 — Requirement sources (situational)
 1. **Files** — drop `.docx`/`.pdf`/`.md` into `projects/<slug>/requirements/`; read them; extract every testable statement.

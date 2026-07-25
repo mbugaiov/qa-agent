@@ -20,6 +20,7 @@ Each line is one JSON object (JSONL). All events include:
 | `tick_start` | Start of a qa-loop tick | `{ "run": "<run-id>" }` |
 | `scope_check` | Jira scope queried (required each tick) | `{ "keys": ["RQ-…"], "count": N }` |
 | `handoff_read` | Dev handoff consumed before V/T retest | `{ "buildId": "…", "pr": "…", "status": "…" }` |
+| `tc_linked` | Ticket mapped to persisted regression TC | `{ "tc_id": "TC-RQ-1", "path": "test-cases/…", "created": true \| "existing": true }` |
 | `dod_check` | **Per scope ticket before tick_end** | See **DoD gate** below |
 | `recording_attached` | E2E clip attached to ticket | `{ "caption": "…" }` |
 | `tick_end` | End of tick (after gate passes) | `{ "run", "scope_count", "gate": "open" }` |
@@ -48,8 +49,10 @@ eval "$(./scripts/jira_scope.sh <slug> --log --shell)"
 | `scope_check` with `count=0` and no keys | **OPEN** — empty scope; exploratory allowed (no `dod_check` required) |
 | `count>0` but keys missing | **CLOSED** — re-run `jira_scope.sh --log` |
 | Each scope key missing terminal `dod_check` | **CLOSED** — log per-ticket `dod_check` |
+| Each scope key missing persisted TC in `test-cases/` (`**Jira:** KEY`) | **CLOSED** — run `ticket_tc.sh` after OpenSpec read |
 
 ```bash
+./scripts/ticket_tc.sh <slug> <KEY> --title "…" [--steps-file runs/<run>/steps-<KEY>.md] [--log]
 ./scripts/factory_tick_gate.sh <slug>              # uses latest scope_check keys
 ./scripts/factory_tick_gate.sh <slug> --keys RQ-1,RQ-2
 ```
@@ -132,8 +135,9 @@ Documented for cross-agent traceability; dev loop may call `factory_log.sh` when
 ./scripts/factory_log.sh <slug> _loop tick_start run=<run-id>
 eval "$(./scripts/jira_scope.sh <slug> --log --shell)"   # mandatory scope_check
 # If count=0 → factory_tick_gate opens immediately (exploratory-only tick).
-# If count>0 → handoff + dod_check per key before gate:
+# If count>0 → handoff + tc persist + dod_check per key before gate:
 ./scripts/jira_handoff.sh <slug> RQ-1 --log
+./scripts/ticket_tc.sh <slug> RQ-1 --title "…" --log
 ./scripts/factory_log.sh <slug> RQ-1 dod_check \
   verdict=DONE two_pass=true canonical_source=true \
   buildid_gate=MATCH recording_attached=true retest_attempted=true feature_steps_executed=true
@@ -143,5 +147,5 @@ eval "$(./scripts/jira_scope.sh <slug> --log --shell)"   # mandatory scope_check
 ./scripts/factory_status.sh <slug>
 ```
 
-**Gate also rejects:** `exploratory` before all scope `dod_check` when `scope_check count > 0`;
+**Gate also rejects:** missing persisted TC per scope key; `exploratory` before all scope `dod_check` when `scope_check count > 0`;
 `RETURN_DEV` without `retest_attempted` + `alternate_locators_tried`; missing `handoff_read` per scope key.

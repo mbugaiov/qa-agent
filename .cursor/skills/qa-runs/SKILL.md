@@ -50,7 +50,7 @@ On rotation: (1) mark the old run **ARCHIVED** in its `run.md` header; (2) `new_
 |---|---|---|---|
 | `targeted` | point test of one feature / a few REQ | subset of cases | `run.md`, `execution-log.md`, (bug-report), report |
 | `exploratory` | charter-driven, time-boxed probing | a charter, no fixed TC list | `run.md`, `exploratory-session.md`, (bug-report) — **+ security slice** (skill `qa-security`) |
-| `regression` | re-verify previously failed/fixed cases | prior cases + carry-over bugs | `run.md`, `execution-log.md` — **+ security slice** (skill `qa-security`) |
+| `regression` | re-verify previously failed/fixed cases | **Regression suite** in `project-memory.md` + all `test-cases/` with `**Jira:**` + carry-over bugs | `run.md`, `execution-log.md` — **+ security slice** (skill `qa-security`) |
 | `smoke` | quick "is it up / core flow works" | P0 happy paths only | `run.md`, `execution-log.md` |
 | `uat` | triage a batch of reported bugs | one verdict per reported bug | `run.md`, `execution-log.md`, full qa-pack |
 | `full` | release / acceptance | everything | `run.md` + full QA proof pack |

@@ -75,6 +75,7 @@ For **security**, follow skill `qa-security` on **`exploratory`** and **`regress
 - A "consistency" fix is PASS only when the displayed VALUE matches the canonical source (detail/DB/API), not just that views agree.
 - Every FAIL gets a triage verdict; `works-as-specified` is not a bug — quote the requirement.
 - Every confirmed defect gets a regression test referencing its bug id.
+- **Loop scope tickets** must persist a `TC-*` in `test-cases/` (`ticket_tc.sh`) before retest; included in **`regression`** runs via `project-memory.md` regression index.
 - Scope drift (tested behaviour with no requirement) is flagged, never silently accepted.
 - **Per-project isolation**: a project uses ONLY its own `projects/<slug>/.secrets/*` — never another project's settings.
 - **Jira gating**: no `.secrets/jira.env` (or placeholders) ⇒ run Jira-free; never error (`scripts/jira_status.sh`).

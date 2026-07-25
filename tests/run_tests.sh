@@ -276,8 +276,10 @@ echo "$GATE_EMPTY" | grep -qi "scope empty" && ok "factory_tick_gate opens on co
 GATE_FAIL2=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC2=$?
 echo "$GATE_FAIL2" | grep -qi "missing dod_check" && ok "factory_tick_gate requires dod_check" || no "factory_tick_gate dod_check requirement"
 ./scripts/factory_log.sh "$SLUG" TST-99 handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-99 --title "Selftest gate ticket 99" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-99 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-100 --title "Selftest gate ticket 100" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 transition to=In\ Progress reason="env blocked" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 dod_check verdict=RETURN_DEV bug_filed=TST-200 transition=In\ Progress openspec_read=true dev_handoff=handoff/TST-100.md retest_attempted=true alternate_locators_tried=true feature_steps_executed=true >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" >/dev/null && ok "factory_tick_gate opens with terminal dod_check" || no "factory_tick_gate should open"
@@ -285,9 +287,61 @@ echo "$GATE_FAIL2" | grep -qi "missing dod_check" && ok "factory_tick_gate requi
 GATE_FAIL4=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-102 2>&1)
 echo "$GATE_FAIL4" | grep -qi "BLOCKED" && ok "factory_tick_gate rejects BLOCKED" || no "factory_tick_gate should reject BLOCKED"
 ./scripts/factory_log.sh "$SLUG" TST-101 dod_check verdict=PARTIAL note="incomplete" >/dev/null 2>&1 || true
+./scripts/factory_log.sh "$SLUG" TST-101 handoff_read >/dev/null 2>&1 || true
+./scripts/ticket_tc.sh "$SLUG" TST-101 --title "Selftest partial ticket" >/dev/null 2>&1 || true
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-101 count=1 >/dev/null
 GATE_FAIL3=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-101 2>&1)
 echo "$GATE_FAIL3" | grep -qi "PARTIAL" && ok "factory_tick_gate rejects PARTIAL" || no "factory_tick_gate should reject PARTIAL"
+
+echo "== 12c. Ticket TC persist =="
+have scripts/ticket_tc.sh
+have scripts/ticket_tc.py
+chmod +x scripts/ticket_tc.sh 2>/dev/null || true
+./scripts/ticket_tc.sh "$SLUG" TST-TC1 --title "Ticket driven regression case" --scenario SC-001 --req REQ-001 >/dev/null \
+  && ok "ticket_tc creates TC from ticket" || no "ticket_tc create"
+[[ -f "projects/$SLUG/test-cases/TC-TST-TC1.md" ]] \
+  && grep -q 'TST-TC1' "projects/$SLUG/test-cases/TC-TST-TC1.md" \
+  && ok "ticket_tc writes Jira line in TC file" || no "ticket_tc file content"
+grep -q 'TST-TC1' "projects/$SLUG/project-memory.md" \
+  && ok "ticket_tc updates regression index in project-memory" || no "ticket_tc memory index"
+./scripts/ticket_tc.sh "$SLUG" TST-TC1 --title "ignored" 2>&1 | grep -qi existing \
+  && ok "ticket_tc idempotent on repeat" || no "ticket_tc idempotent"
+grep -q 'ticket_tc' projects/_template/factory/schema.md \
+  && ok "factory schema documents ticket_tc / tc_linked" || no "schema ticket_tc docs"
+GATE_NO_TC=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-NOTC 2>&1); GATE_NO_TC_EC=$?
+echo "$GATE_NO_TC" | grep -qi "persisted TC" && [[ $GATE_NO_TC_EC -ne 0 ]] \
+  && ok "factory_tick_gate closed without persisted TC" || no "factory_tick_gate TC requirement"
+# (a) pre-existing TC file without a Jira line — must heal marker + index
+mkdir -p "projects/$SLUG/test-cases"
+cat > "projects/$SLUG/test-cases/TC-TST-HEAL.md" <<'EOF'
+# TC-TST-HEAL — orphan without Jira
+
+- **Type**: Acceptance
+- **Priority**: P1
+
+## Steps
+  1. Placeholder
+
+## Expected
+Pass
+EOF
+./scripts/ticket_tc.sh "$SLUG" TST-HEAL --title "heal orphan" >/dev/null \
+  && grep -qE '^\s*-\s*\*\*Jira:\*\*\s*TST-HEAL' "projects/$SLUG/test-cases/TC-TST-HEAL.md" \
+  && grep -qE '\| TST-HEAL \|' "projects/$SLUG/project-memory.md" \
+  && ok "ticket_tc heals existing file missing Jira line" || no "ticket_tc heal orphan file"
+# (b) shorter key after longer key — exact cell match, not substring
+./scripts/ticket_tc.sh "$SLUG" TST-10 --title "longer key ten" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-1 --title "shorter key one" >/dev/null
+grep -qE '\| TST-10 \|' "projects/$SLUG/project-memory.md" \
+  && grep -qE '\| TST-1 \|' "projects/$SLUG/project-memory.md" \
+  && ok "ticket_tc indexes TST-1 and TST-10 as distinct rows" || no "ticket_tc substring key collision"
+# (c) --link onto TC that already has a different Jira key
+./scripts/ticket_tc.sh "$SLUG" TST-LINK-A --title "shared TC primary" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-LINK-B --link TC-TST-LINK-A >/dev/null \
+  && grep -qE '^\s*-\s*\*\*Jira:\*\*\s*TST-LINK-A' "projects/$SLUG/test-cases/TC-TST-LINK-A.md" \
+  && grep -qE '^\s*-\s*\*\*Jira:\*\*\s*TST-LINK-B' "projects/$SLUG/test-cases/TC-TST-LINK-A.md" \
+  && grep -qE '\| TST-LINK-B \|' "projects/$SLUG/project-memory.md" \
+  && ok "ticket_tc --link adds second Jira key on shared TC" || no "ticket_tc --link second key"
 
 echo "== 12. Usage accounting =="
 have scripts/collect_usage.py
@@ -367,17 +421,20 @@ echo "== 17. Factory tick gate — FAIL and SKIP_DEV =="
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-extra >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-200 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-200 handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-200 --title "Selftest FAIL terminal" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-200 transition to=In\ Progress reason=regression >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-200 dod_check verdict=FAIL reason=regression bug_filed=TST-300 openspec_read=true dev_handoff=handoff/TST-200.md retest_attempted=true feature_steps_executed=true two_pass=true transition=In\ Progress >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" --keys TST-200 >/dev/null && ok "factory_tick_gate accepts FAIL with full DoD" || no "factory_tick_gate FAIL terminal"
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-ok >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-201 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-201 handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-201 --title "Selftest SKIP_DEV ok" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-201 dod_check verdict=SKIP_DEV note="dev still coding" jira_status=In\ Progress >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" --keys TST-201 >/dev/null && ok "factory_tick_gate accepts SKIP_DEV in progress" || no "factory_tick_gate SKIP_DEV"
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-bad >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-202 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-202 handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-202 --title "Selftest SKIP_DEV bad status" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-202 dod_check verdict=SKIP_DEV note="wrong status" jira_status=Validate/Testing >/dev/null
 GATE_SKIP2=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-202 2>&1)
 echo "$GATE_SKIP2" | grep -qi "SKIP_DEV" && ok "factory_tick_gate rejects SKIP_DEV outside In Progress" || no "factory_tick_gate SKIP_DEV status guard"

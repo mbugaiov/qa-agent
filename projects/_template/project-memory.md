@@ -35,6 +35,13 @@
 - ✅ Covered: <areas already tested>
 - ⬜ Not yet / shallow: <areas to probe next>
 
+## Regression suite (ticket → TC index)
+Persisted when a ticket first enters loop scope (`scripts/ticket_tc.sh`). Included in **`regression`** run scope.
+
+| Jira | TC | File | Regression |
+|------|-----|------|------------|
+| <KEY> | TC-<KEY> | `test-cases/TC-<KEY>.md` | yes |
+
 ## Security ledger (skill `qa-security` — exploratory + regression runs, not loop ticks)
 - **Next slice:** <headers | authentication | authorization | rate-limit | input-validation | data-exposure>
 - **Last run:** <date> — <category> — <PASS/FAIL/n/a>
