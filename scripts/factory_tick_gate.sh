@@ -138,6 +138,23 @@ def ticket_dod_verdict(key):
             return str((ev.get("detail") or {}).get("verdict", "")).upper()
     return ""
 
+def normalize_status(s):
+    return str(s or "").lower().replace("_", " ").strip()
+
+def is_validate_testing(status):
+    ns = normalize_status(status)
+    return ns == "validate/testing" or (ns.startswith("validate") and "testing" in ns)
+
+def ticket_handoff_status(key):
+    """Authoritative Jira status from handoff_read this tick (not dod_check.jira_status)."""
+    for ev in reversed([ev for ev in load_events(runs_dir / f"{key}.jsonl") if since_tick(ev)]):
+        if ev.get("event") != "handoff_read":
+            continue
+        d = ev.get("detail") or {}
+        if d.get("status"):
+            return str(d["status"])
+    return ""
+
 effective_scope = scope_count if scope_count > 0 else len(scope_keys)
 if effective_scope > 0:
     has_exploratory = any(ev.get("event") == "exploratory" for ev in loop_events if since_tick(ev))
@@ -232,12 +249,41 @@ for key in scope_keys:
         if not dod.get("recording_exempt") and not dod.get("recording_attached"):
             errors.append(f"{key}: DONE requires recording_attached=true or recording_exempt=true")
 
+    handoff_status = ticket_handoff_status(key)
+    if handoff_status:
+        js_logged = normalize_status(dod.get("jira_status", ""))
+        hs = normalize_status(handoff_status)
+        if js_logged and hs != js_logged:
+            errors.append(
+                f"{key}: dod_check jira_status={dod.get('jira_status')!r} "
+                f"mismatches handoff_read status={handoff_status!r} — re-read handoff; never copy stale status"
+            )
+        if is_validate_testing(handoff_status):
+            if verdict == "SKIP_DEV":
+                errors.append(
+                    f"{key}: SKIP_DEV forbidden when handoff_read is Validate/Testing — "
+                    f"full retest required (DONE|FAIL|RETURN_DEV); impl-dev label does not skip V/T"
+                )
+            elif verdict not in ("DONE", "FAIL", "RETURN_DEV"):
+                errors.append(
+                    f"{key}: Validate/Testing requires DONE|FAIL|RETURN_DEV (got {verdict})"
+                )
+
     if verdict == "SKIP_DEV":
         if not dod.get("note"):
             errors.append(f"{key}: SKIP_DEV requires note")
-        js = str(dod.get("jira_status", "")).lower()
-        if js and js not in ("in progress", "in_progress"):
-            errors.append(f"{key}: SKIP_DEV only when jira_status=In Progress (got {js})")
+        if handoff_status:
+            if normalize_status(handoff_status) != "in progress":
+                if not any(
+                    "SKIP_DEV forbidden" in e or "handoff_read is Validate/Testing" in e for e in errors
+                ):
+                    errors.append(
+                        f"{key}: SKIP_DEV only when handoff_read status is In Progress (got {handoff_status!r})"
+                    )
+        else:
+            js = normalize_status(dod.get("jira_status", ""))
+            if js and js not in ("in progress",):
+                errors.append(f"{key}: SKIP_DEV only when jira_status=In Progress (got {dod.get('jira_status')!r})")
 
 if errors:
     print("GATE CLOSED — tick_end not allowed:", file=sys.stderr)
