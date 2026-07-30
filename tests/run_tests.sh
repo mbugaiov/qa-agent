@@ -447,6 +447,99 @@ GATE_SKIP3=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-203 2>&1)
 echo "$GATE_SKIP3" | grep -qi "Validate/Testing" && ok "factory_tick_gate rejects SKIP_DEV when handoff is V/T" || no "factory_tick_gate V/T SKIP_DEV guard"
 echo "$GATE_SKIP3" | grep -qi "mismatch" && ok "factory_tick_gate rejects jira_status/handoff mismatch" || no "factory_tick_gate handoff mismatch guard"
 
+echo "== 17b. record_retest auth gate (exit 3) =="
+# Offline: stub playwright so we exercise expectAuthenticated without a browser.
+REC_TMP="$(mktemp -d)"
+mkdir -p "$REC_TMP/node_modules/playwright" "$REC_TMP/out" "$REC_TMP/out-ok" "$REC_TMP/out-legacy"
+cat > "$REC_TMP/node_modules/playwright/index.js" <<'PWEOF'
+class FakeLocator {
+  constructor(visible) { this._visible = visible; }
+  async isVisible() { return this._visible; }
+  async click() {}
+}
+class FakePage {
+  constructor(opts) {
+    this._url = opts.finalUrl || 'http://example.test/home';
+    this._loginVisible = !!opts.loginVisible;
+  }
+  async goto(url) {
+    // Simulate auth redirect to login when FAKE_REDIRECT_URL is set.
+    this._url = process.env.FAKE_REDIRECT_URL || url;
+  }
+  async fill() {}
+  async type() {}
+  async click() {}
+  async press() {}
+  async waitForTimeout() {}
+  async waitForSelector() {}
+  locator(sel) {
+    const loginSel = process.env.FAKE_LOGIN_SEL || '[data-testid=login-user]';
+    return new FakeLocator(this._loginVisible && sel === loginSel);
+  }
+  url() { return this._url; }
+  video() { return { path: async () => null }; }
+}
+class FakeContext {
+  constructor(opts) { this._opts = opts; this._page = null; }
+  async newPage() {
+    this._page = new FakePage({
+      finalUrl: process.env.FAKE_PAGE_URL || 'http://example.test/sign-in',
+      loginVisible: process.env.FAKE_LOGIN_VISIBLE === '1',
+    });
+    return this._page;
+  }
+  async close() {}
+}
+class FakeBrowser {
+  async newContext() { return new FakeContext(); }
+  async close() {}
+}
+module.exports = { chromium: { launch: async () => new FakeBrowser() } };
+PWEOF
+# Missing unauthenticated indicators → exit 1
+cat > "$REC_TMP/bad-meta.json" <<'EOF'
+{"expectAuthenticated": true, "steps": [{"do":"goto","url":"http://example.test/app"}]}
+EOF
+NODE_PATH="$REC_TMP/node_modules" node scripts/record_retest.cjs "$REC_TMP/bad-meta.json" "$REC_TMP/out" >/dev/null 2>&1
+[[ $? -eq 1 ]] && ok "record_retest requires unauthenticated indicators" || no "record_retest missing-indicator gate"
+# expectAuthenticated + urlIncludes match → exit 3
+cat > "$REC_TMP/auth-fail.json" <<'EOF'
+{
+  "expectAuthenticated": true,
+  "unauthenticated": {"urlIncludes": "/sign-in", "selector": "[data-testid=login-user]"},
+  "steps": [{"do":"goto","url":"http://example.test/app"}]
+}
+EOF
+FAKE_REDIRECT_URL='http://example.test/sign-in' FAKE_LOGIN_VISIBLE=0 \
+  NODE_PATH="$REC_TMP/node_modules" node scripts/record_retest.cjs "$REC_TMP/auth-fail.json" "$REC_TMP/out" >/dev/null 2>&1
+[[ $? -eq 3 ]] && ok "record_retest exits 3 when unauthenticated (urlIncludes)" || no "record_retest exit 3 urlIncludes"
+# expectAuthenticated + selector visible → exit 3
+FAKE_PAGE_URL='http://example.test/app' FAKE_LOGIN_VISIBLE=1 \
+  NODE_PATH="$REC_TMP/node_modules" node scripts/record_retest.cjs "$REC_TMP/auth-fail.json" "$REC_TMP/out" >/dev/null 2>&1
+[[ $? -eq 3 ]] && ok "record_retest exits 3 when unauthenticated (selector)" || no "record_retest exit 3 selector"
+# protected alias + authenticated page → no exit 3 (falls through to exit 2: no video from stub)
+cat > "$REC_TMP/auth-ok.json" <<'EOF'
+{
+  "protected": true,
+  "unauthenticated": {"urlIncludes": "/sign-in"},
+  "steps": [{"do":"goto","url":"http://example.test/app"}]
+}
+EOF
+FAKE_PAGE_URL='http://example.test/app' FAKE_LOGIN_VISIBLE=0 \
+  NODE_PATH="$REC_TMP/node_modules" node scripts/record_retest.cjs "$REC_TMP/auth-ok.json" "$REC_TMP/out-ok" >/dev/null 2>&1
+[[ $? -eq 2 ]] && ok "record_retest skips auth reject when authenticated" || no "record_retest authenticated path"
+# Legacy array steps: no auth gate even if URL looks like sign-in
+cat > "$REC_TMP/legacy.json" <<'EOF'
+[{"do":"goto","url":"http://example.test/sign-in"}]
+EOF
+FAKE_PAGE_URL='http://example.test/sign-in' \
+  NODE_PATH="$REC_TMP/node_modules" node scripts/record_retest.cjs "$REC_TMP/legacy.json" "$REC_TMP/out-legacy" >/dev/null 2>&1
+[[ $? -eq 2 ]] && ok "record_retest legacy array has no auth gate" || no "record_retest legacy array"
+# Engine must not hardcode app routes/selectors for this gate
+! grep -qE "['\"]/(dashboard|login)['\"]|#username" scripts/record_retest.cjs \
+  && ok "record_retest has no hardcoded app auth paths" || no "record_retest portability (auth paths)"
+rm -rf "$REC_TMP"
+
 echo "== 18. Code review gate =="
 have scripts/review_gate.py
 have scripts/check_review_gate.sh

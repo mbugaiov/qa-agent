@@ -82,7 +82,7 @@ Exit **0** = gate open → safe to log `tick_end`. Exit **1** = gate closed → 
 
 **Handoff cross-check (gate enforced):** `factory_tick_gate.sh` reads `handoff_read.status` from the
 same tick. **`SKIP_DEV` is rejected** when handoff is **Validate/Testing**. **`dod_check.jira_status`**
-must match handoff — stale `In Progress` while Jira is V/T closes the gate (RQ-1928 anti-pattern).
+must match handoff — stale `In Progress` while Jira is V/T closes the gate (stale handoff status anti-pattern).
 
 ### Forbidden verdicts at `tick_end`
 

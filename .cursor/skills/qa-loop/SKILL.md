@@ -134,15 +134,15 @@ If still blocked:
 | `RETURN_DEV` | `bug_filed` or `dev_ticket`, `transition` to=In Progress, `retest_attempted=true`, `alternate_locators_tried=true`, `feature_steps_executed=true` |
 | `SKIP_DEV` | `jira_status` matches handoff; `note` |
 
-**Anti-patterns (gate now rejects — RQ-1928 class):**
+**Anti-patterns (gate now rejects):**
 
 | Mistake | Why wrong | Fix |
 |---------|-----------|-----|
 | `SKIP_DEV` while Jira is **Validate/Testing** | Dev handed off; QA must retest | Full DoD → **Done** or **RETURN_DEV** |
-| `dod_check jira_status=In Progress` but handoff says **V/T** | Stale copy-paste; gate compares to `handoff_read` | Re-run `jira_handoff.sh --log`; use live status |
+| `dod_check jira_status=In Progress` but handoff says **V/T** | Stale handoff status; gate compares to `handoff_read` | Re-run `jira_handoff.sh --log`; use live status |
 | Exploratory spec before scope retest on open **V/T** | Scope work deferred | Finish scope `dod_check` first; gate blocks exploratory |
 | `impl-dev` label → skip retest | Label = owner, not skip permission | **V/T always retest** regardless of labels |
-| `feature_steps_executed=true` without running handoff steps | False Done (RQ-1923 class) | Gate requires evidence fields per verdict |
+| `feature_steps_executed=true` without running handoff steps | False Done | Gate requires evidence fields per verdict |
 
 **FORBIDDEN:** `SKIP_DEV` on **Validate/Testing** or when `handoff_read` status ≠ `In Progress`. Never log 5+ consecutive SKIP_DEV on the same key without re-reading handoff — status may have moved to V/T.
 
