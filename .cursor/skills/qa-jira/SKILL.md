@@ -119,6 +119,7 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
 - **Multi-ticket ticks (mandatory):** each loop tick runs the scope JQL and must attempt **full machine DoD on every row returned** before the tick ends. Never close one ticket and defer siblings to the next wake. A dev handoff that moves a previously Done ticket back to `Validate/Testing` (new merge SHA) puts it back in scope — retest it in the same tick if other scope tickets are also open.
 - Active/QA-retest scope JQL: `parent = <EPIC-KEY> AND statusCategory != Done AND status not in ("To Do","On Hold")`.
 - QA *implementation* (impl-qa) scope JQL: `parent = <EPIC-KEY> AND labels = impl-qa AND status = "To Do"`.
+- **Same-tick completion:** move `impl-qa` To Do → **In Progress** only when you will **Done** the ticket in **this same tick**. Gate rejects `transition` + `SKIP_DEV`, and `retest_attempted` + `SKIP_DEV`. Multi-hour charters → split subtasks or dedicated run — not partial 15m slices.
 
 ### Machine DoD for auto-Done (all must hold)
 1. Two-pass retest **PASS** against the **canonical source** (detail page / DB / API), not a weaker proxy.

@@ -447,6 +447,17 @@ GATE_SKIP3=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-203 2>&1)
 echo "$GATE_SKIP3" | grep -qi "Validate/Testing" && ok "factory_tick_gate rejects SKIP_DEV when handoff is V/T" || no "factory_tick_gate V/T SKIP_DEV guard"
 echo "$GATE_SKIP3" | grep -qi "mismatch" && ok "factory_tick_gate rejects jira_status/handoff mismatch" || no "factory_tick_gate handoff mismatch guard"
 
+echo "== 17b. Factory tick gate — same-tick completion =="
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-same-tick >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-204 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-204 handoff_read status=In\ Progress >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-204 --title "Selftest autotake defer forbidden" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-204 transition to=In\ Progress reason=autotake >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-204 dod_check verdict=SKIP_DEV note="defer next tick" jira_status=In\ Progress retest_attempted=true feature_steps_executed=true >/dev/null
+GATE_SAME=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-204 2>&1)
+echo "$GATE_SAME" | grep -qi "work started" && ok "factory_tick_gate rejects SKIP_DEV after work started" || no "factory_tick_gate same-tick work guard"
+echo "$GATE_SAME" | grep -qi "defer" && ok "factory_tick_gate rejects defer after autotake" || no "factory_tick_gate autotake completion guard"
+
 echo "== 17b. record_retest auth gate (exit 3) =="
 # Offline: stub playwright so we exercise expectAuthenticated without a browser.
 REC_TMP="$(mktemp -d)"

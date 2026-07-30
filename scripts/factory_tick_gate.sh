@@ -181,6 +181,17 @@ def has_transition(events, target="In Progress"):
                 return True
     return False
 
+def ticket_work_started(events, dod):
+    """True when QA actually started ticket work this tick (not passive monitor)."""
+    if has_transition(events, "In Progress"):
+        return True
+    for flag in ("retest_attempted", "feature_steps_executed"):
+        if str((dod or {}).get(flag, "")).lower() in ("true", "1", "yes"):
+            return True
+    if any(ev.get("event") in ("factory_autotake", "recording_attached") for ev in events):
+        return True
+    return False
+
 checked = {}
 
 for key in scope_keys:
@@ -272,6 +283,11 @@ for key in scope_keys:
     if verdict == "SKIP_DEV":
         if not dod.get("note"):
             errors.append(f"{key}: SKIP_DEV requires note")
+        if ticket_work_started(events, dod):
+            errors.append(
+                f"{key}: SKIP_DEV forbidden after work started this tick — "
+                f"finish to Done (or FAIL/RETURN_DEV if blocked); do not defer to next tick"
+            )
         if handoff_status:
             if normalize_status(handoff_status) != "in progress":
                 if not any(
@@ -284,6 +300,16 @@ for key in scope_keys:
             js = normalize_status(dod.get("jira_status", ""))
             if js and js not in ("in progress",):
                 errors.append(f"{key}: SKIP_DEV only when jira_status=In Progress (got {dod.get('jira_status')!r})")
+
+    # Same-tick completion: autotake / transition / retest ⇒ must finish, not defer.
+    if has_transition(events, "In Progress") and verdict != "DONE":
+        if verdict == "SKIP_DEV":
+            pass  # already reported above
+        elif verdict not in ("FAIL", "RETURN_DEV"):
+            errors.append(
+                f"{key}: moved to In Progress this tick — must complete to Done before tick_end "
+                f"(or FAIL/RETURN_DEV with full blocker path); no partial deferral"
+            )
 
 if errors:
     print("GATE CLOSED — tick_end not allowed:", file=sys.stderr)

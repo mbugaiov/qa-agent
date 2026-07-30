@@ -27,7 +27,7 @@ A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of
    coverage broadens every tick, not the same pages). Track covered areas in `run.md` so ticks don't repeat.
 3. **Auto-file new confirmed bugs** to Jira under the epic (dedupe via JQL first, unattended); update `run.md` (covered areas + findings).
 
-4. **impl-qa factory queue (when retest scope is empty):** `labels = impl-qa AND status = "To Do"` — autotake the head ticket (move to In Progress when execution starts), run its linked `runs/<id>/` folder charter. **Never start impl-qa while retest JQL has open V/T tickets.** Do not leave impl-qa queued while retest JQL still has open tickets.
+4. **impl-qa factory queue (when retest scope is empty):** `labels = impl-qa AND status = "To Do"` — see **Same-tick completion** below. **Never start impl-qa while retest JQL has open V/T tickets.**
 
 5. **File confirmed defects during regression/retest:** any `confirmed-defect` or sign-off-blocking environmental issue → `create_jira_issue.py` immediately with `--labels <slug>,confirmed-defect` (script auto-adds **`impl-dev`** for dev factory autotake; dedupe JQL first). Comment on the feature ticket; the **bug is a separate issue** under the epic.
 
@@ -83,6 +83,24 @@ echo "scope count=${SCOPE_COUNT:-$count} keys=${SCOPE_KEYS:-$keys}"
 Generic STG smoke is **prep only**, not a substitute for feature retest.
 
 **Never re-arm the loop sleeper until step 4 passes** (unless user explicitly requests monitor-only mode).
+
+## Same-tick completion (mandatory — gate enforced)
+
+**If you start work on a ticket this tick, you must finish it this tick.** No partial progress deferred to the next wake.
+
+| Action counts as “started” | Required before `tick_end` |
+|--------------------------|----------------------------|
+| Jira `transition` to **In Progress** (autotake) | **Done** (or **FAIL** / **RETURN_DEV** with full blocker path) |
+| `retest_attempted=true` / `feature_steps_executed=true` | Same — no **SKIP_DEV** |
+| `factory_autotake` / recording attached | Same |
+
+**Rules:**
+
+1. **Do not autotake** an `impl-qa` ticket (move To Do → In Progress) unless you will **complete all acceptance criteria to Done in this same tick**.
+2. **Multi-hour factory tasks** (e.g. full regression charter) → **split into tick-sized Jira subtasks** OR run a **dedicated session** (not the 15m loop) — leave the parent **To Do** until a single tick can finish it.
+3. **SKIP_DEV** is only for **passive monitor** of **dev-owned** `In Progress` tickets where **you did not start work** this tick (no transition, no retest flags).
+4. **Never** log `tick_end` after starting automation/browser work on a ticket unless that ticket is **Done** (or returned with FAIL/RETURN_DEV).
+5. If time runs out mid-ticket → **do not transition to In Progress**; leave **To Do** and note in comment — pick up next tick only after re-arm, still must finish same tick once started.
 
 **Per-ticket checklist** (log one `dod_check` per key; copy into `run.md` each tick):
 
@@ -143,6 +161,7 @@ If still blocked:
 | Exploratory spec before scope retest on open **V/T** | Scope work deferred | Finish scope `dod_check` first; gate blocks exploratory |
 | `impl-dev` label → skip retest | Label = owner, not skip permission | **V/T always retest** regardless of labels |
 | `feature_steps_executed=true` without running handoff steps | False Done | Gate requires evidence fields per verdict |
+| Autotake / transition **In Progress** then `tick_end` without **Done** | Partial deferral anti-pattern | Finish same tick or do not autotake; gate rejects SKIP_DEV after work started |
 
 **FORBIDDEN:** `SKIP_DEV` on **Validate/Testing** or when `handoff_read` status ≠ `In Progress`. Never log 5+ consecutive SKIP_DEV on the same key without re-reading handoff — status may have moved to V/T.
 
