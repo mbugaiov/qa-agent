@@ -77,8 +77,12 @@ Exit **0** = gate open → safe to log `tick_end`. Exit **1** = gate closed → 
 | `bug_filed` | `FAIL`, `RETURN_DEV` | Jira key of separate bug (product defect or env blocker) |
 | `dev_ticket` | `RETURN_DEV` (locator gap) | impl-dev task for testids/locators |
 | `transition` | `FAIL`, `RETURN_DEV` | `In Progress` — logged via `transition` event or field |
-| `jira_status` | `SKIP_DEV` | Must be `In Progress` |
+| `jira_status` | `SKIP_DEV` | Must be `In Progress` **and match** `handoff_read` status this tick |
 | `note` | `SKIP_DEV` | Why dev-owned — not V/T retest this tick |
+
+**Handoff cross-check (gate enforced):** `factory_tick_gate.sh` reads `handoff_read.status` from the
+same tick. **`SKIP_DEV` is rejected** when handoff is **Validate/Testing**. **`dod_check.jira_status`**
+must match handoff — stale `In Progress` while Jira is V/T closes the gate (RQ-1928 anti-pattern).
 
 ### Forbidden verdicts at `tick_end`
 

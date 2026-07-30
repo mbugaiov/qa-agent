@@ -39,6 +39,17 @@ const path = require('node:path');
       else if (s.do === 'waitFor') await page.waitForSelector(s.selector, { timeout: s.timeout || 8000 }).catch(() => {});
       await page.waitForTimeout(300);
     }
+    // Reject recordings that land on login when steps target protected routes.
+    const protectedTarget = steps.some(
+      (s) => s.do === 'goto' && typeof s.url === 'string' && s.url.includes('/dashboard')
+    );
+    const onLogin =
+      page.url().includes('/login') ||
+      (await page.locator('#username').isVisible().catch(() => false));
+    if (protectedTarget && onLogin) {
+      console.error('recording ended on login page; add login steps or storageState');
+      process.exit(3);
+    }
   } catch (e) {
     console.error('step error:', e.message);
   } finally {

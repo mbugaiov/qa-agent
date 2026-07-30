@@ -438,6 +438,14 @@ echo "== 17. Factory tick gate — FAIL and SKIP_DEV =="
 ./scripts/factory_log.sh "$SLUG" TST-202 dod_check verdict=SKIP_DEV note="wrong status" jira_status=Validate/Testing >/dev/null
 GATE_SKIP2=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-202 2>&1)
 echo "$GATE_SKIP2" | grep -qi "SKIP_DEV" && ok "factory_tick_gate rejects SKIP_DEV outside In Progress" || no "factory_tick_gate SKIP_DEV status guard"
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-lie >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-203 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-203 handoff_read status=Validate/Testing buildId=abc1234 >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-203 --title "Selftest SKIP_DEV stale jira_status" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-203 dod_check verdict=SKIP_DEV note="stale copy" jira_status=In\ Progress >/dev/null
+GATE_SKIP3=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-203 2>&1)
+echo "$GATE_SKIP3" | grep -qi "Validate/Testing" && ok "factory_tick_gate rejects SKIP_DEV when handoff is V/T" || no "factory_tick_gate V/T SKIP_DEV guard"
+echo "$GATE_SKIP3" | grep -qi "mismatch" && ok "factory_tick_gate rejects jira_status/handoff mismatch" || no "factory_tick_gate handoff mismatch guard"
 
 echo "== 18. Code review gate =="
 have scripts/review_gate.py
