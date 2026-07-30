@@ -84,6 +84,10 @@ Exit **0** = gate open → safe to log `tick_end`. Exit **1** = gate closed → 
 same tick. **`SKIP_DEV` is rejected** when handoff is **Validate/Testing**. **`dod_check.jira_status`**
 must match handoff — stale `In Progress` while Jira is V/T closes the gate (stale handoff status anti-pattern).
 
+**Same-tick completion (gate enforced):** `transition to=In Progress`, `retest_attempted=true`, or
+`feature_steps_executed=true` this tick ⇒ **`tick_end` requires `DONE`** (or `FAIL` / `RETURN_DEV` with
+full blocker fields). **`SKIP_DEV` after work started is rejected** (partial deferral anti-pattern).
+
 ### Forbidden verdicts at `tick_end`
 
 Never log `dod_check` with **`PARTIAL`**, **`DEFERRED`**, or **`PASS_PENDING`**. Those mean
