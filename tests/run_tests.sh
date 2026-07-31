@@ -310,6 +310,13 @@ PY
 have "scripts/qa_tick_notify.py"
 have "scripts/test_tick_notify.sh"
 have "scripts/arm_qa_loop.sh"
+# Validation only — do not start the sleeper.
+! QA_LOOP_INTERVAL_SEC='1200;echo PWNED' bash scripts/arm_qa_loop.sh demo >/dev/null 2>&1 \
+  && ok "arm_qa_loop rejects non-numeric interval" \
+  || no "arm_qa_loop must reject non-numeric interval"
+! bash scripts/arm_qa_loop.sh "bad'slug" >/dev/null 2>&1 \
+  && ok "arm_qa_loop rejects invalid slug" \
+  || no "arm_qa_loop must reject invalid slug"
 grep_ok "QA_FACTORY_TEAMS_WEBHOOK_URL" "projects/_template/jira.env.example" "template documents QA Teams webhook"
 grep_ok "QA_FACTORY_TEAMS_WEBHOOK_URL" ".cursor/skills/qa-loop/SKILL.md" "qa-loop documents Teams notify on scope --log"
 python3 - <<'PY' && ok "notify_from_scope quiet without webhook" || no "notify_from_scope must stay quiet when unset"
