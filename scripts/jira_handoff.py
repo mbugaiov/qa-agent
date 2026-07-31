@@ -165,6 +165,9 @@ def main() -> int:
         if hints.get("pipeline"):
             log_args.append(f"pipeline={hints['pipeline']}")
         log_args.append(f"status={status}")
+        labels = fields.get("labels") or []
+        if labels:
+            log_args.append(f"labels={','.join(str(x) for x in labels)}")
         script = os.path.join(ROOT, "scripts", "factory_log.sh")
         cmd = [script, slug, a.key, "handoff_read", *log_args]
         subprocess.run(cmd, check=False)

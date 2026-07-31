@@ -27,11 +27,11 @@ A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of
    coverage broadens every tick, not the same pages). Track covered areas in `run.md` so ticks don't repeat.
 3. **Auto-file new confirmed bugs** to Jira under the epic (dedupe via JQL first, unattended); update `run.md` (covered areas + findings).
 
-4. **impl-qa factory queue (when retest scope is empty):** `labels = impl-qa AND status = "To Do"` — see **Same-tick completion** below. **Never start impl-qa while retest JQL has open V/T tickets.**
+4. **impl-qa factory queue (when retest scope is empty):** `labels = impl-qa AND status = "To Do"` — see **impl-qa active work** and **Same-tick completion** below. **Never start impl-qa while retest JQL has open V/T tickets.**
 
 5. **File confirmed defects during regression/retest:** any `confirmed-defect` or sign-off-blocking environmental issue → `create_jira_issue.py` immediately with `--labels <slug>,confirmed-defect` (script auto-adds **`impl-dev`** for dev factory autotake; dedupe JQL first). Comment on the feature ticket; the **bug is a separate issue** under the epic.
 
-**Not on every tick:** security testing — run only on **`exploratory`** and **`regression`** run cycles (skill `qa-security`). Loop ticks are Jira retest + lightweight exploratory slices, not security cycles.
+**Not on every tick:** ad-hoc security slices on non-charter tickets — run full security only on **`exploratory`**, **`regression`**, and **`impl-qa` charter** run cycles (skill `qa-security`). Loop ticks still **must execute impl-qa charter slices** when an `impl-qa` ticket is in scope.
 
 Prioritise coverage breadth: exploratory slices should advance to something not yet tested each tick.
 
@@ -84,6 +84,39 @@ Generic STG smoke is **prep only**, not a substitute for feature retest.
 
 **Never re-arm the loop sleeper until step 4 passes** (unless user explicitly requests monitor-only mode).
 
+## impl-qa marathon mode (mandatory when user or charter requires full completion)
+
+**When an `impl-qa` ticket is In Progress in scope, default to marathon — not 15m slices.**
+
+| Mode | When | Behavior |
+|------|------|----------|
+| **Marathon** | `impl-qa` In Progress + multi-phase charter (regression, exploratory, security) | **Work until Done** in one session — **hours OK**. **No `tick_end`**. **No loop re-arm**. Dev tickets in scope **wait** (no `dod_check` until `impl-qa` → **Done**). |
+| **Slice** | User explicitly requests 15m loop slices only | `QA_CONTINUE` per wake (legacy; discouraged for full charters) |
+
+**Marathon rules (user-directed or full charter):**
+
+1. **Kill** all `AGENT_LOOP_WAKE_*` sleepers — do not re-arm until `impl-qa` → **Done**.
+2. `tick_start` once; log `marathon_start ticket=<KEY>` via `factory_log.sh` (e.g. `_loop marathon_start ticket=RQ-XXXX`). **Gate freezes only when this event is present** — without it, slice-mode `QA_CONTINUE` may open `tick_end`.
+3. **Only work the `impl-qa` ticket** until acceptance criteria met or **`needs-human`** blocker documented.
+4. Run phases **sequentially** (0→5) from the ticket run folder — do not stop after curl smoke.
+5. **`tick_end` + `factory_tick_gate.sh` only when `impl-qa` → Done** (or user stops marathon).
+6. **Then** process waiting dev/feature scope tickets (`SKIP_DEV` / retest) and re-arm loop.
+
+**Forbidden in marathon:** `tick_end` with `QA_CONTINUE`; 2-minute curl-only “progress”; re-arming 15m sleeper mid-charter.
+
+## impl-qa active work (mandatory — gate enforced)
+
+**`impl-qa` = QA-owned factory ticket.** It is **never** a passive dev monitor ticket.
+
+| Label / owner | In Progress meaning | Allowed terminal verdicts | Forbidden |
+|---------------|---------------------|---------------------------|-----------|
+| **`impl-qa`** | QA charter in flight | **`DONE`** (marathon end) or **`QA_CONTINUE`** (slice mode only) | **`SKIP_DEV`** |
+| **`impl-dev`** (or no factory label) | Dev still coding | **`SKIP_DEV`** when passive monitor | SKIP_DEV on **Validate/Testing** |
+
+**Slice mode only** (when marathon not active): execute one charter slice, log `QA_CONTINUE` — see schema for fields.
+
+**Prefer marathon** for full STG regression + exploratory + security charters (multi-hour impl-qa).
+
 ## Same-tick completion (mandatory — gate enforced)
 
 **If you start work on a ticket this tick, you must finish it this tick.** No partial progress deferred to the next wake.
@@ -96,11 +129,11 @@ Generic STG smoke is **prep only**, not a substitute for feature retest.
 
 **Rules:**
 
-1. **Do not autotake** an `impl-qa` ticket (move To Do → In Progress) unless you will **complete all acceptance criteria to Done in this same tick**.
-2. **Multi-hour factory tasks** (e.g. full regression charter) → **split into tick-sized Jira subtasks** OR run a **dedicated session** (not the 15m loop) — leave the parent **To Do** until a single tick can finish it.
-3. **SKIP_DEV** is only for **passive monitor** of **dev-owned** `In Progress` tickets where **you did not start work** this tick (no transition, no retest flags).
-4. **Never** log `tick_end` after starting automation/browser work on a ticket unless that ticket is **Done** (or returned with FAIL/RETURN_DEV).
-5. If time runs out mid-ticket → **do not transition to In Progress**; leave **To Do** and note in comment — pick up next tick only after re-arm, still must finish same tick once started.
+1. **Full `impl-qa` charters → marathon mode** (work until Done; no `tick_end`/re-arm mid-charter) unless user explicitly requests 15m slices.
+2. **Do not autotake** `impl-qa` To Do → In Progress unless starting a **marathon** or a tick-sized subtask you will **Done** same session.
+3. **`SKIP_DEV`** only for **dev-owned** passive monitor — **never on `impl-qa`**.
+4. **Feature retest** with `retest_attempted=true` → **Done** or **FAIL**/**RETURN_DEV** same session.
+5. **Marathon:** dev tickets in scope **wait** — handle them only after `impl-qa` → **Done**, then `tick_end`.
 
 **Per-ticket checklist** (log one `dod_check` per key; copy into `run.md` each tick):
 
@@ -113,6 +146,7 @@ Generic STG smoke is **prep only**, not a substitute for feature retest.
 | 1 | Two-pass retest on **canonical source** (detail / audit / API) | `retest_attempted=true`, `feature_steps_executed=true` |
 | 2 | `stg_buildid.sh` → MATCH or MATCH_AHEAD (or N/A / SKIP) | `buildid_gate` |
 | 3 | `record_and_attach.sh` → Jira (unless `recording_exempt` pure-CI) | `recording_attached=true` |
+| 3b | **Filed bugs:** screenshot `--attach` + `record_and_attach.sh` on **bug** key | `bug_screenshot_attached=true`, `bug_recording_attached=true` |
 | 4 | Jira `transition` + comment: **Done** if PASS; **In Progress** if FAIL or blocked | `transition` event |
 
 **RETURN_DEV / FAIL** additionally require in `dod_check`: `retest_attempted=true`,
@@ -130,9 +164,9 @@ A ticket in `Validate/Testing` must end the tick as either **Done** or **In Prog
 - manual two-pass on canonical source if automation cannot drive one control
 
 If still blocked:
-1. **File** a separate Jira issue (`create_jira_issue.py` for product bug; impl-dev task for missing testids/locators)
-2. **Return** feature ticket: `python3 scripts/jira_return_in_progress.py --project projects/<slug> --key <KEY> --reason "…" --steps-tried "1. … 2. …" --handoff-file runs/<run>/retest-fail-<KEY>-tick<N>.md [--dev-ticket <KEY>]`
-3. Log `transition to=In Progress` + `dod_check verdict=RETURN_DEV` with `openspec_read=true`, `dev_handoff=<path>`
+1. **File** a separate Jira issue — **`templates/bug-report.md`** with OpenSpec REQ/Scenario, exact steps, screenshot `--attach`, then **`record_and_attach.sh`** on the new bug key (see skill `qa-jira` Evidence package).
+2. **Return** feature ticket: `jira_return_in_progress.py` + `templates/retest-fail-dev-handoff.md` (quote OpenSpec THEN vs actual).
+3. Log `dod_check verdict=FAIL|RETURN_DEV` with `bug_filed`, `bug_recording_attached=true`, `bug_screenshot_attached=true`, `openspec_req=REQ-…`, `dev_handoff=<path>`.
 
 **Terminal `dod_check` verdicts only:**
 
@@ -141,21 +175,24 @@ If still blocked:
 | `DONE` | Full DoD met (two-pass, buildId, recording) |
 | `FAIL` | Product defect confirmed |
 | `RETURN_DEV` | Blocked — returned to In Progress + dev/bug ticket |
-| `SKIP_DEV` | **`handoff_read` status = In Progress only** — dev still coding, no V/T handoff |
+| `QA_CONTINUE` | **`impl-qa` only** — charter slice done this tick; ticket stays In Progress |
+| `SKIP_DEV` | **Dev-owned** `In Progress` only — dev still coding, no V/T handoff |
 
 **Required fields by verdict:**
 
 | Verdict | Required fields |
 |---------|-----------------|
-| `DONE` | `two_pass=true`, `canonical_source=true`, `buildid_gate`, `recording_attached=true` (or `recording_exempt=true`), `retest_attempted=true`, `feature_steps_executed=true` |
-| `FAIL` | `bug_filed=<KEY>`, `transition` to=In Progress, `openspec_read=true`, `dev_handoff`, `retest_attempted=true`, `feature_steps_executed=true` |
-| `RETURN_DEV` | `bug_filed` or `dev_ticket`, `transition` to=In Progress, `retest_attempted=true`, `alternate_locators_tried=true`, `feature_steps_executed=true` |
-| `SKIP_DEV` | `jira_status` matches handoff; `note` |
+| `DONE` | `two_pass=true`, `canonical_source=true`, `buildid_gate`, `recording_attached=true` (or `recording_exempt=true`), `retest_attempted=true`, `feature_steps_executed=true`, **`openspec_read=true`** |
+| `FAIL` | `bug_filed`, **`bug_recording_attached=true`**, **`bug_screenshot_attached=true`**, **`openspec_req` or `openspec_scenario`**, `transition`, `openspec_read=true`, `dev_handoff`, `retest_attempted=true`, `feature_steps_executed=true` |
+| `RETURN_DEV` | `bug_filed` or `dev_ticket`, **`bug_recording_attached=true`**, **`bug_screenshot_attached=true`**, **`openspec_req` or `openspec_scenario`**, `transition`, `openspec_read=true`, `retest_attempted=true`, `alternate_locators_tried=true`, `feature_steps_executed=true` |
+| `QA_CONTINUE` | `openspec_read=true`, `qa_work_done=true`, `charter_slice`, `charter_artifact`, `jira_status` matches handoff |
+| `SKIP_DEV` | `jira_status` matches handoff; `note`; **not** on `impl-qa` |
 
 **Anti-patterns (gate now rejects):**
 
 | Mistake | Why wrong | Fix |
 |---------|-----------|-----|
+| **`SKIP_DEV` on `impl-qa`** | QA-owned charter; monitor-only ticks on active charter | **`QA_CONTINUE`** + charter slice + artifact update |
 | `SKIP_DEV` while Jira is **Validate/Testing** | Dev handed off; QA must retest | Full DoD → **Done** or **RETURN_DEV** |
 | `dod_check jira_status=In Progress` but handoff says **V/T** | Stale handoff status; gate compares to `handoff_read` | Re-run `jira_handoff.sh --log`; use live status |
 | Exploratory spec before scope retest on open **V/T** | Scope work deferred | Finish scope `dod_check` first; gate blocks exploratory |
