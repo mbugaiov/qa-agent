@@ -96,7 +96,7 @@ Generic STG smoke is **prep only**, not a substitute for feature retest.
 **Marathon rules (user-directed or full charter):**
 
 1. **Kill** all `AGENT_LOOP_WAKE_*` sleepers — do not re-arm until `impl-qa` → **Done**.
-2. `tick_start` once; log `marathon_start ticket=RQ-XXXX` via `factory_log.sh`.
+2. `tick_start` once; log `marathon_start ticket=<KEY>` via `factory_log.sh` (e.g. `_loop marathon_start ticket=RQ-XXXX`). **Gate freezes only when this event is present** — without it, slice-mode `QA_CONTINUE` may open `tick_end`.
 3. **Only work the `impl-qa` ticket** until acceptance criteria met or **`needs-human`** blocker documented.
 4. Run phases **sequentially** (0→5) from the ticket run folder — do not stop after curl smoke.
 5. **`tick_end` + `factory_tick_gate.sh` only when `impl-qa` → Done** (or user stops marathon).

@@ -2,8 +2,10 @@
 # Gate: per-ticket machine DoD before qa-loop tick_end.
 #
 # Reads factory ledger since the latest tick_start. Every scope ticket must have
-# a dod_check event with a terminal verdict (DONE, FAIL, RETURN_DEV, SKIP_DEV).
-# PARTIAL, DEFERRED, PASS_PENDING, and BLOCKED are rejected — finish DoD, FAIL, or RETURN_DEV.
+# a dod_check event with a terminal verdict (DONE, FAIL, RETURN_DEV, SKIP_DEV,
+# QA_CONTINUE). PARTIAL, DEFERRED, PASS_PENDING, and BLOCKED are rejected.
+# Marathon freeze (impl-qa must be DONE; QA_CONTINUE rejected) applies only when
+# marathon_start is logged this tick — otherwise slice-mode QA_CONTINUE is allowed.
 #
 # Usage:
 #   scripts/factory_tick_gate.sh <slug> [--keys RQ-1,RQ-2,...]
@@ -177,8 +179,24 @@ impl_qa_ip = [
     k for k in scope_keys
     if is_impl_qa(k) and normalize_status(ticket_handoff_status(k)) == "in progress"
 ]
-marathon_frozen = bool(impl_qa_ip) and not all(
-    ticket_dod_verdict(k) == "DONE" for k in impl_qa_ip
+
+def has_marathon_start():
+    """Opt-in marathon: only when marathon_start is logged this tick (_loop or ticket)."""
+    for ev in loop_events:
+        if since_tick(ev) and ev.get("event") == "marathon_start":
+            return True
+    for key in impl_qa_ip:
+        for ev in load_events(runs_dir / f"{key}.jsonl"):
+            if since_tick(ev) and ev.get("event") == "marathon_start":
+                return True
+    return False
+
+# Slice mode (no marathon_start): QA_CONTINUE may open the gate.
+# Marathon mode (marathon_start logged): freeze until impl-qa → DONE.
+marathon_frozen = (
+    has_marathon_start()
+    and bool(impl_qa_ip)
+    and not all(ticket_dod_verdict(k) == "DONE" for k in impl_qa_ip)
 )
 prep_keys = impl_qa_ip if marathon_frozen else scope_keys
 

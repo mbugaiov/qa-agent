@@ -466,13 +466,27 @@ echo "== 17c. Factory tick gate — impl-qa marathon =="
 ./scripts/factory_log.sh "$SLUG" TST-205 dod_check verdict=SKIP_DEV note="monitor" jira_status=In\ Progress >/dev/null
 GATE_IQA1=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-205 2>&1)
 echo "$GATE_IQA1" | grep -qi "impl-qa" && ok "factory_tick_gate rejects SKIP_DEV on impl-qa" || no "factory_tick_gate impl-qa SKIP guard"
-./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-impl-qa-marathon >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-impl-qa-slice >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-206 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-206 handoff_read status=In\ Progress labels=impl-qa >/dev/null
-./scripts/ticket_tc.sh "$SLUG" TST-206 --title "Selftest impl-qa QA_CONTINUE forbidden in marathon" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-206 --title "Selftest impl-qa QA_CONTINUE slice mode" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-206 dod_check verdict=QA_CONTINUE jira_status=In\ Progress openspec_read=true qa_work_done=true charter_slice="Phase1" charter_artifact=runs/test/execution-log.md note="charter continues" >/dev/null
-GATE_IQA2=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-206 2>&1)
+./scripts/factory_tick_gate.sh "$SLUG" --keys TST-206 >/dev/null && ok "factory_tick_gate accepts QA_CONTINUE in slice mode (no marathon_start)" || no "factory_tick_gate slice QA_CONTINUE"
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-impl-qa-marathon >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-208 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop marathon_start ticket=TST-208 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-208 handoff_read status=In\ Progress labels=impl-qa >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-208 --title "Selftest impl-qa QA_CONTINUE forbidden in marathon" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-208 dod_check verdict=QA_CONTINUE jira_status=In\ Progress openspec_read=true qa_work_done=true charter_slice="Phase1" charter_artifact=runs/test/execution-log.md note="charter continues" >/dev/null
+GATE_IQA2=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-208 2>&1)
 echo "$GATE_IQA2" | grep -qi "marathon" && ok "factory_tick_gate rejects QA_CONTINUE during impl-qa marathon" || no "factory_tick_gate marathon QA_CONTINUE guard"
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-impl-qa-done >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-209 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop marathon_start ticket=TST-209 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-209 handoff_read status=In\ Progress labels=impl-qa >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-209 --title "Selftest impl-qa marathon DONE" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-209 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=N/A recording_attached=true retest_attempted=true feature_steps_executed=true openspec_read=true >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" --keys TST-209 >/dev/null && ok "factory_tick_gate accepts DONE during impl-qa marathon" || no "factory_tick_gate marathon DONE"
 
 echo "== 17d. Factory tick gate — bug evidence package =="
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-bug-evidence >/dev/null

@@ -19,6 +19,7 @@ Each line is one JSON object (JSONL). All events include:
 |-------|------|------------------|
 | `tick_start` | Start of a qa-loop tick | `{ "run": "<run-id>" }` |
 | `scope_check` | Jira scope queried (required each tick) | `{ "keys": ["RQ-…"], "count": N }` |
+| `marathon_start` | Opt into impl-qa marathon (freeze until Done) | `{ "ticket": "RQ-…" }` on `_loop`, or bare event on the ticket |
 | `handoff_read` | Dev handoff consumed before V/T retest | `{ "buildId": "…", "pr": "…", "status": "…" }` |
 | `tc_linked` | Ticket mapped to persisted regression TC | `{ "tc_id": "TC-RQ-1", "path": "test-cases/…", "created": true \| "existing": true }` |
 | `dod_check` | **Per scope ticket before tick_end** | See **DoD gate** below |
@@ -87,7 +88,7 @@ Exit **0** = gate open → safe to log `tick_end`. Exit **1** = gate closed → 
 | `dev_ticket` | `RETURN_DEV` (locator gap) | impl-dev task for testids/locators |
 | `transition` | `FAIL`, `RETURN_DEV` | `In Progress` — logged via `transition` event or field |
 
-**`impl-qa` ownership (gate enforced):** when `handoff_read.labels` includes **`impl-qa`**, **`SKIP_DEV` is rejected**. **Marathon mode:** work until **Done**. **Evidence on Done:** E2E recording + OpenSpec-checked steps (`openspec_read=true`).
+**`impl-qa` ownership (gate enforced):** when `handoff_read.labels` includes **`impl-qa`**, **`SKIP_DEV` is rejected**. **Slice mode (default):** `QA_CONTINUE` with `charter_slice` + `charter_artifact` may open `tick_end`. **Marathon mode (opt-in):** log `marathon_start` this tick — then gate freezes until **Done** (`QA_CONTINUE` rejected; other scope tickets wait). **Evidence on Done:** E2E recording + OpenSpec-checked steps (`openspec_read=true`).
 
 **Bug filing evidence (gate enforced):** `FAIL`/`RETURN_DEV` with `bug_filed` or `dev_ticket` requires **`bug_recording_attached=true`**, **`bug_screenshot_attached=true`**, and **`openspec_req`** or **`openspec_scenario`**.
 
@@ -127,7 +128,9 @@ python3 scripts/jira_return_in_progress.py --project projects/<slug> --key ABC-2
   retest_attempted=true alternate_locators_tried=true feature_steps_executed=true
 ```
 
-### Example (impl-qa charter — continue next tick)
+### Example (impl-qa charter — slice mode continue)
+
+Do **not** log `marathon_start` this tick. Gate accepts `QA_CONTINUE` when charter fields are present:
 
 ```bash
 ./scripts/jira_handoff.sh <slug> RQ-99 --log   # handoff_read includes labels=impl-qa
@@ -136,6 +139,17 @@ python3 scripts/jira_return_in_progress.py --project projects/<slug> --key ABC-2
   charter_slice="Phase 2: manual cron path with CRON_SECRET" \
   charter_artifact="runs/<run-id>/execution-log.md" \
   note="Acceptance not met — charter continues"
+```
+
+### Example (impl-qa marathon — opt-in freeze until Done)
+
+```bash
+./scripts/factory_log.sh <slug> _loop marathon_start ticket=RQ-99
+# … work charter until acceptance …
+./scripts/factory_log.sh <slug> RQ-99 dod_check \
+  verdict=DONE two_pass=true canonical_source=true buildid_gate=N/A \
+  recording_attached=true retest_attempted=true feature_steps_executed=true openspec_read=true
+# tick_end only after DONE; QA_CONTINUE is rejected while marathon_start is active
 ```
 
 ## Dev factory events (`agent=dev`) — ingest manually or via dev loop

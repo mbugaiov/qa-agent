@@ -166,7 +166,7 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
 - `Validate/Testing` = QA queue. Retest → PASS → **auto-Done** when DoD met. **Only two terminal outcomes for V/T:** **Done** (all passed) or **In Progress** (blocker/dev fix). **Never leave a ticket in Validate/Testing while blocked.**
 - **Locator / automation blockers:** try alternate locators and native-click paths first. If still blocked → file separate dev ticket (impl-dev: add testids/locators) or product bug → `jira_return_in_progress.py` → log `dod_check verdict=RETURN_DEV`.
 - `In Progress` = also in QA scope; re-check each tick, never drop until Done/Closed.
-  - **`impl-qa` In Progress:** mandatory **`QA_CONTINUE`** each tick (charter slice + artifact) — **`SKIP_DEV` forbidden** (gate reads `handoff_read.labels`).
+  - **`impl-qa` In Progress:** **`SKIP_DEV` forbidden**. Slice mode → **`QA_CONTINUE`** (charter slice + artifact); marathon (`marathon_start`) → work until **`DONE`** (gate reads `handoff_read.labels`).
   - **Dev-owned In Progress:** **`SKIP_DEV` only when passive monitor** — `jira_handoff.sh --log` status `In Progress`, no work started this tick; never when handoff says **Validate/Testing**.
 - **Multi-ticket ticks (mandatory):** each loop tick runs the scope JQL and must attempt **full machine DoD on every row returned** before the tick ends. Never close one ticket and defer siblings to the next wake. A dev handoff that moves a previously Done ticket back to `Validate/Testing` (new merge SHA) puts it back in scope — retest it in the same tick if other scope tickets are also open.
 - Active/QA-retest scope JQL: `parent = <EPIC-KEY> AND statusCategory != Done AND status not in ("To Do","On Hold")`.
