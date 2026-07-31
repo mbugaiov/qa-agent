@@ -9,9 +9,9 @@ Webhook (optional; same Power Automate channel as Hephaestus when URLs match):
   DEV_FACTORY_TEAMS_WEBHOOK_URL (shared fallback)
 
 Usage:
-  python3 scripts/qa_tick_notify.py --slug lrm --wake --keys RQ-1,RQ-2 [--summaries 'RQ-1: a|RQ-2: b']
-  python3 scripts/qa_tick_notify.py --slug lrm --idle
-  python3 scripts/qa_tick_notify.py --slug lrm --smoke [--idle]
+  python3 scripts/qa_tick_notify.py --slug <slug> --wake --keys ABC-1,ABC-2 [--summaries 'ABC-1: a|ABC-2: b']
+  python3 scripts/qa_tick_notify.py --slug <slug> --idle
+  python3 scripts/qa_tick_notify.py --slug <slug> --smoke [--idle]
 """
 from __future__ import annotations
 

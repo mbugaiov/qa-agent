@@ -269,17 +269,17 @@ sys.modules["qa_tick_notify"] = mod
 spec.loader.exec_module(mod)
 
 wake = mod.build_tick_notify_summary(
-    slug="lrm",
+    slug="demo",
     kind="wake",
     count=2,
     issues=[{"key": "TST-1", "summary": "Retest A"}, {"key": "TST-2", "summary": "Retest B"}],
     next_wake_utc="2099-01-01 00:00:00 UTC",
 )
 assert "QA factory execute" in wake and "TST-1" in wake and "Next tick" in wake, wake
-idle = mod.build_tick_notify_summary(slug="lrm", kind="idle", next_wake_utc="2099-01-01 00:00:00 UTC")
+idle = mod.build_tick_notify_summary(slug="demo", kind="idle", next_wake_utc="2099-01-01 00:00:00 UTC")
 assert "QA factory idle" in idle, idle
 body = mod.build_tick_notify_webhook_body(
-    slug="lrm",
+    slug="demo",
     kind="wake",
     count=2,
     issues=[{"key": "TST-1", "summary": "Retest A"}, {"key": "TST-2", "summary": "Retest B"}],
@@ -303,7 +303,7 @@ ok_url = mod.check_webhook_url(
 assert ok_url["ok"] is True
 
 # Quiet not_configured when posting with empty webhook
-outcome = mod.post_qa_tick_notify(slug="lrm", kind="idle", webhook_url="")
+outcome = mod.post_qa_tick_notify(slug="demo", kind="idle", webhook_url="")
 assert outcome["delivered"] is False and outcome["reason"] == "not_configured"
 assert mod.should_report_outcome(outcome) is False
 PY
