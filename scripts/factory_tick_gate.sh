@@ -125,7 +125,7 @@ if not scope_keys:
     print("GATE CLOSED: scope_check count>0 but keys missing — re-run jira_scope.sh --log", file=sys.stderr)
     sys.exit(1)
 
-TERMINAL = {"DONE", "FAIL", "RETURN_DEV", "SKIP_DEV"}
+TERMINAL = {"DONE", "FAIL", "RETURN_DEV", "SKIP_DEV", "QA_CONTINUE"}
 FORBIDDEN = {"PARTIAL", "DEFERRED", "PASS_PENDING", "BLOCKED"}
 errors = []
 
@@ -155,16 +155,46 @@ def ticket_handoff_status(key):
             return str(d["status"])
     return ""
 
+def ticket_handoff_labels(key):
+    """Labels from handoff_read this tick (factory ownership routing)."""
+    for ev in reversed([ev for ev in load_events(runs_dir / f"{key}.jsonl") if since_tick(ev)]):
+        if ev.get("event") != "handoff_read":
+            continue
+        d = ev.get("detail") or {}
+        raw = d.get("labels")
+        if isinstance(raw, list):
+            return [str(x) for x in raw]
+        if raw:
+            return [x.strip() for x in str(raw).split(",") if x.strip()]
+    return []
+
+def is_impl_qa(key):
+    return any(str(l).lower() == "impl-qa" for l in ticket_handoff_labels(key))
+
 effective_scope = scope_count if scope_count > 0 else len(scope_keys)
+
+impl_qa_ip = [
+    k for k in scope_keys
+    if is_impl_qa(k) and normalize_status(ticket_handoff_status(k)) == "in progress"
+]
+marathon_frozen = bool(impl_qa_ip) and not all(
+    ticket_dod_verdict(k) == "DONE" for k in impl_qa_ip
+)
+prep_keys = impl_qa_ip if marathon_frozen else scope_keys
+
 if effective_scope > 0:
     has_exploratory = any(ev.get("event") == "exploratory" for ev in loop_events if since_tick(ev))
-    if has_exploratory:
+    if has_exploratory and marathon_frozen:
+        errors.append(
+            "exploratory forbidden during impl-qa marathon — finish charter to Done first"
+        )
+    elif has_exploratory:
         for key in scope_keys:
             if ticket_dod_verdict(key) not in TERMINAL:
                 errors.append(
                     f"exploratory logged before {key} has terminal dod_check — finish scope retest first"
                 )
-    for key in scope_keys:
+    for key in prep_keys:
         if not ticket_has_event(key, "handoff_read"):
             errors.append(f"{key}: missing handoff_read — run scripts/jira_handoff.sh <slug> {key} --log")
         if not ticket_has_tc_file(key):
@@ -192,9 +222,32 @@ def ticket_work_started(events, dod):
         return True
     return False
 
+def require_bug_jira_evidence(key, dod, errors):
+    """When a separate bug/dev ticket was filed, evidence must be on Jira."""
+    bug_key = dod.get("bug_filed") or dod.get("dev_ticket")
+    if not bug_key:
+        return
+    if str(dod.get("bug_recording_attached", "")).lower() not in ("true", "1", "yes"):
+        errors.append(
+            f"{key}: bug {bug_key} requires bug_recording_attached=true "
+            f"(record_and_attach.sh on the Jira issue)"
+        )
+    if str(dod.get("bug_screenshot_attached", "")).lower() not in ("true", "1", "yes"):
+        errors.append(
+            f"{key}: bug {bug_key} requires bug_screenshot_attached=true "
+            f"(create_jira_issue.py --attach screenshot)"
+        )
+    if not dod.get("openspec_req") and not dod.get("openspec_scenario"):
+        errors.append(
+            f"{key}: bug filing requires openspec_req=REQ-… or openspec_scenario=… "
+            f"(authority from openspec_read.sh)"
+        )
+
 checked = {}
 
 for key in scope_keys:
+    if marathon_frozen and key not in impl_qa_ip:
+        continue  # dev/feature tickets wait until impl-qa marathon completes
     events = [ev for ev in load_events(runs_dir / f"{key}.jsonl") if since_tick(ev)]
     dod = None
     for ev in reversed(events):
@@ -228,6 +281,7 @@ for key in scope_keys:
             errors.append(f"{key}: FAIL requires feature_steps_executed=true")
         if not has_transition(events) and not dod.get("transition"):
             errors.append(f"{key}: FAIL requires transition to=In Progress (V/T cannot stay open)")
+        require_bug_jira_evidence(key, dod, errors)
 
     if verdict == "RETURN_DEV":
         if not dod.get("bug_filed") and not dod.get("dev_ticket"):
@@ -246,6 +300,7 @@ for key in scope_keys:
             errors.append(f"{key}: RETURN_DEV requires transition to=In Progress (never leave V/T blocked)")
         if str(dod.get("jira_status", "")).lower() == "validate/testing" and not (has_transition(events) or dod.get("transition")):
             errors.append(f"{key}: RETURN_DEV — must move ticket off Validate/Testing same tick")
+        require_bug_jira_evidence(key, dod, errors)
 
     if verdict == "DONE":
         if not dod.get("two_pass"):
@@ -259,6 +314,8 @@ for key in scope_keys:
             errors.append(f"{key}: DONE requires buildid_gate MATCH|MATCH_AHEAD|N/A|SKIP (got {gate!r})")
         if not dod.get("recording_exempt") and not dod.get("recording_attached"):
             errors.append(f"{key}: DONE requires recording_attached=true or recording_exempt=true")
+        if not dod.get("openspec_read"):
+            errors.append(f"{key}: DONE requires openspec_read=true (spec authority checked)")
 
     handoff_status = ticket_handoff_status(key)
     if handoff_status:
@@ -279,6 +336,43 @@ for key in scope_keys:
                 errors.append(
                     f"{key}: Validate/Testing requires DONE|FAIL|RETURN_DEV (got {verdict})"
                 )
+
+    if is_impl_qa(key) and verdict == "SKIP_DEV":
+        errors.append(
+            f"{key}: SKIP_DEV forbidden on impl-qa — QA-owned charter ticket; "
+            f"log QA_CONTINUE with charter_slice + charter_artifact, or Done when acceptance met"
+        )
+
+    if marathon_frozen and is_impl_qa(key) and verdict == "QA_CONTINUE":
+        errors.append(
+            f"{key}: QA_CONTINUE forbidden during impl-qa marathon — work until Done, then tick_end"
+        )
+
+    if marathon_frozen and is_impl_qa(key) and verdict != "DONE":
+        errors.append(
+            f"{key}: impl-qa marathon active — tick_end requires Done (got {verdict})"
+        )
+
+    if verdict == "QA_CONTINUE":
+        if not is_impl_qa(key):
+            errors.append(
+                f"{key}: QA_CONTINUE only for impl-qa labeled tickets (handoff_read labels)"
+            )
+        hs = normalize_status(handoff_status or dod.get("jira_status", ""))
+        if hs and hs != "in progress":
+            errors.append(
+                f"{key}: QA_CONTINUE only when handoff is In Progress (got {handoff_status or dod.get('jira_status')!r})"
+            )
+        if not dod.get("charter_slice"):
+            errors.append(f"{key}: QA_CONTINUE requires charter_slice=<work done this tick>")
+        if not dod.get("charter_artifact"):
+            errors.append(
+                f"{key}: QA_CONTINUE requires charter_artifact=<run folder path updated this tick>"
+            )
+        if not dod.get("openspec_read"):
+            errors.append(f"{key}: QA_CONTINUE requires openspec_read=true")
+        if str(dod.get("qa_work_done", "")).lower() not in ("true", "1", "yes"):
+            errors.append(f"{key}: QA_CONTINUE requires qa_work_done=true (active charter work, not monitor)")
 
     if verdict == "SKIP_DEV":
         if not dod.get("note"):

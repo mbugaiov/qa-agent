@@ -63,11 +63,16 @@ Exit **0** = gate open → safe to log `tick_end`. Exit **1** = gate closed → 
 
 | Field | Required when | Values |
 |-------|---------------|--------|
-| `verdict` | always | Terminal only: `DONE`, `FAIL`, `RETURN_DEV`, `SKIP_DEV` |
+| `verdict` | always | Terminal only: `DONE`, `FAIL`, `RETURN_DEV`, `SKIP_DEV`, `QA_CONTINUE` |
 | `two_pass` | `DONE` | `true` — Pass 1 real input + Pass 2 automation agree |
 | `canonical_source` | `DONE` | `true` — verified detail page / API / audit, not UI-only proxy |
 | `buildid_gate` | `DONE` | `MATCH`, `MATCH_AHEAD`, `N/A`, or `SKIP` |
-| `openspec_read` | `FAIL`, `RETURN_DEV` | `true` — after `openspec_read.sh` |
+| `jira_status` | `SKIP_DEV`, `QA_CONTINUE` | Must be `In Progress` **and match** `handoff_read` status this tick |
+| `note` | `SKIP_DEV`, `QA_CONTINUE` | Why dev-owned skip, or charter status for QA_CONTINUE |
+| `charter_slice` | `QA_CONTINUE` | One-line summary of **active QA work done this tick** on impl-qa charter |
+| `charter_artifact` | `QA_CONTINUE` | Run-folder path updated (execution-log, security-checklist, exploratory-session, …) |
+| `qa_work_done` | `QA_CONTINUE` | `true` — proves charter slice executed (not monitor-only) |
+| `openspec_read` | `QA_CONTINUE`, `FAIL`, `RETURN_DEV`, **`DONE`** | `true` — after `openspec_read.sh`; expected behaviour from OpenSpec THEN |
 | `dev_handoff` | `FAIL`, `RETURN_DEV` | path to `retest-fail-<KEY>.md` posted to Jira |
 | `recording_exempt` | pure-CI tickets | `true` |
 | `retest_attempted` | `FAIL`, `RETURN_DEV`, `DONE` | `true` — feature-specific steps were run (smoke alone insufficient) |
@@ -75,10 +80,16 @@ Exit **0** = gate open → safe to log `tick_end`. Exit **1** = gate closed → 
 | `alternate_locators_tried` | `RETURN_DEV` | `true` — exhausted data-testid / role / text / native click |
 | `steps_tried` | `RETURN_DEV` (optional alt.) | Short summary if `feature_steps_executed` omitted |
 | `bug_filed` | `FAIL`, `RETURN_DEV` | Jira key of separate bug (product defect or env blocker) |
+| `bug_recording_attached` | `FAIL`, `RETURN_DEV` (when `bug_filed`/`dev_ticket`) | `true` — `record_and_attach.sh` on the **bug** Jira key |
+| `bug_screenshot_attached` | `FAIL`, `RETURN_DEV` (when `bug_filed`/`dev_ticket`) | `true` — screenshot attached via `create_jira_issue.py --attach` |
+| `openspec_req` | `FAIL`, `RETURN_DEV`, `DONE`, bug filing | REQ-ID from `openspec_read.sh` (oracle for expected) |
+| `openspec_scenario` | alt. to `openspec_req` | Scenario name from OpenSpec |
 | `dev_ticket` | `RETURN_DEV` (locator gap) | impl-dev task for testids/locators |
 | `transition` | `FAIL`, `RETURN_DEV` | `In Progress` — logged via `transition` event or field |
-| `jira_status` | `SKIP_DEV` | Must be `In Progress` **and match** `handoff_read` status this tick |
-| `note` | `SKIP_DEV` | Why dev-owned — not V/T retest this tick |
+
+**`impl-qa` ownership (gate enforced):** when `handoff_read.labels` includes **`impl-qa`**, **`SKIP_DEV` is rejected**. **Marathon mode:** work until **Done**. **Evidence on Done:** E2E recording + OpenSpec-checked steps (`openspec_read=true`).
+
+**Bug filing evidence (gate enforced):** `FAIL`/`RETURN_DEV` with `bug_filed` or `dev_ticket` requires **`bug_recording_attached=true`**, **`bug_screenshot_attached=true`**, and **`openspec_req`** or **`openspec_scenario`**.
 
 **Handoff cross-check (gate enforced):** `factory_tick_gate.sh` reads `handoff_read.status` from the
 same tick. **`SKIP_DEV` is rejected** when handoff is **Validate/Testing**. **`dod_check.jira_status`**
@@ -114,6 +125,17 @@ python3 scripts/jira_return_in_progress.py --project projects/<slug> --key ABC-2
 ./scripts/factory_log.sh <slug> ABC-2 dod_check \
   verdict=RETURN_DEV dev_ticket=ABC-9 transition=In\ Progress \
   retest_attempted=true alternate_locators_tried=true feature_steps_executed=true
+```
+
+### Example (impl-qa charter — continue next tick)
+
+```bash
+./scripts/jira_handoff.sh <slug> RQ-99 --log   # handoff_read includes labels=impl-qa
+./scripts/factory_log.sh <slug> RQ-99 dod_check \
+  verdict=QA_CONTINUE jira_status="In Progress" openspec_read=true qa_work_done=true \
+  charter_slice="Phase 2: manual cron path with CRON_SECRET" \
+  charter_artifact="runs/<run-id>/execution-log.md" \
+  note="Acceptance not met — charter continues"
 ```
 
 ## Dev factory events (`agent=dev`) — ingest manually or via dev loop

@@ -54,18 +54,68 @@ If the project uses factory engineering tickets, label them **`impl-dev`** or **
 |------|-------|-------|
 | **Dev factory loop** | `labels = impl-dev AND status = "To Do"` | `impl-qa`, `deferred`, On Hold |
 | **QA factory loop** | `labels = impl-qa AND status = "To Do"` | `impl-dev`, `deferred`, On Hold |
-| **QA retest loop** | `Validate/Testing`, `In Progress` (features dev shipped) | impl-* factory tickets |
+| **QA retest loop** | `Validate/Testing`, `In Progress` (features dev shipped) | impl-* factory tickets in To Do only |
 
-**CR agent** never picks Jira tickets — it reviews PRs inside the dev loop only. Each ticket description may include **Implementing agent** — read it before any work.
+**Ownership at verdict time (gate enforced):**
+
+| Ticket | Verdict when still In Progress |
+|--------|--------------------------------|
+| **`impl-qa`** | **Marathon → Done** only at charter end; dev scope frozen until then |
+| **`impl-dev` / feature fix** | **`SKIP_DEV`** only when passive monitor |
+| **`Validate/Testing`** | **`DONE` \| `FAIL` \| `RETURN_DEV`** — never SKIP_DEV |
+
+## Evidence package (MUST — gate enforced)
+
+**No Jira ticket is filed, reopened, or moved to Done without attached artifacts and spec authority.**
+
+### Before any test or filing
+1. **`openspec_read.sh <slug> --ticket <KEY>`** (or `--cap` / `--grep`) — read governing **REQ** + **Scenario** WHEN/THEN.
+2. **`ticket_tc.sh`** — persist steps in `test-cases/TC-<KEY>.md`; execution must match persisted TC + OpenSpec oracle.
+3. Log **`openspec_read=true`**, **`openspec_req=REQ-…`**, **`openspec_scenario=…`** in `dod_check` or bug description.
+
+### When filing a bug (`create_jira_issue.py`)
+**All required before the issue is considered filed:**
+
+| # | Artifact | How |
+|---|----------|-----|
+| 1 | **Exact steps** | Numbered in `templates/bug-report.md` — same steps as recording |
+| 2 | **Expected vs actual** | **Quote OpenSpec THEN** (or REQ from traceability matrix / `manual-test-plan.md`) |
+| 3 | **Screenshot** | Error state PNG → `--attach` (repeatable for multiple) |
+| 4 | **E2E recording** | After create: `record_and_attach.sh <slug> <NEW-KEY> <steps.json> "…"` |
+| 5 | **Build / env** | STG buildId, role, URL in description |
+| 6 | **Factory log** | `bug_filed=<KEY>` + `bug_recording_attached=true` + `bug_screenshot_attached=true` in `dod_check` |
+
+**Forbidden:** filing with description-only; markdown-only evidence; curl output without screenshot+recording; steps that don't match OpenSpec oracle.
+
+### When moving a ticket to Done
+- **`record_and_attach.sh`** on the **feature/impl-qa ticket** (≤10MB E2E of customer journey proving acceptance).
+- Steps in recording must match **OpenSpec scenarios** exercised + persisted TC.
+- Log `recording_attached=true`, `two_pass=true`, `canonical_source=true` in `dod_check`.
+
+### When reopening a regression
+- `reopen_regression.py --attach <screenshot>` **and** attach recording via `record_and_attach.sh` on the reopened key.
+- Comment must cite **OpenSpec expected** vs **actual** on current STG buildId.
 
 ## Filing a bug
 
 ```
+# 1. Read spec authority
+./scripts/openspec_read.sh <slug> --ticket <FEATURE-KEY>
+
+# 2. Write templates/bug-report.md (OpenSpec REQ/Scenario + exact steps)
+
+# 3. Create with screenshot(s)
 python3 scripts/create_jira_issue.py --project projects/<slug> \
-  --summary "BUG-XXX: <one line>" --description-file <run>/bug-report.md \
-  --severity S2 --labels <slug>,confirmed-defect --attach <run>/screenshots/BUG-XXX.png   # repeatable
-  # confirmed-defect → script also adds impl-dev (dev factory autotake). --dry-run to preview.
-  # --no-impl-dev only for rare exceptions (e.g. human-triaged-only noise).
+  --summary "PF-XX: <one line>" --description-file <run>/bug-report.md \
+  --severity S2 --labels <slug>,confirmed-defect \
+  --attach <run>/screenshots/BUG-001-fail.png
+
+# 4. Recording on the NEW bug key (MUST)
+scripts/record_and_attach.sh <slug> <NEW-JIRA-KEY> <steps.json> "Repro: …"
+
+# 5. Ledger
+./scripts/factory_log.sh <slug> <FEATURE-KEY> dod_check … bug_filed=<NEW-KEY> \
+  bug_recording_attached=true bug_screenshot_attached=true openspec_read=true openspec_req=REQ-…
 ```
 
 ## Filing a task (L5 / factory / dev work)
@@ -115,11 +165,13 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
 
 - `Validate/Testing` = QA queue. Retest → PASS → **auto-Done** when DoD met. **Only two terminal outcomes for V/T:** **Done** (all passed) or **In Progress** (blocker/dev fix). **Never leave a ticket in Validate/Testing while blocked.**
 - **Locator / automation blockers:** try alternate locators and native-click paths first. If still blocked → file separate dev ticket (impl-dev: add testids/locators) or product bug → `jira_return_in_progress.py` → log `dod_check verdict=RETURN_DEV`.
-- `In Progress` = also in QA scope; re-check each tick, never drop until Done/Closed. **`SKIP_DEV` only when `jira_handoff.sh --log` reports status `In Progress`** — never when handoff says **Validate/Testing** (gate cross-checks `handoff_read` vs `dod_check.jira_status`; lying stale status closes the gate).
+- `In Progress` = also in QA scope; re-check each tick, never drop until Done/Closed.
+  - **`impl-qa` In Progress:** mandatory **`QA_CONTINUE`** each tick (charter slice + artifact) — **`SKIP_DEV` forbidden** (gate reads `handoff_read.labels`).
+  - **Dev-owned In Progress:** **`SKIP_DEV` only when passive monitor** — `jira_handoff.sh --log` status `In Progress`, no work started this tick; never when handoff says **Validate/Testing**.
 - **Multi-ticket ticks (mandatory):** each loop tick runs the scope JQL and must attempt **full machine DoD on every row returned** before the tick ends. Never close one ticket and defer siblings to the next wake. A dev handoff that moves a previously Done ticket back to `Validate/Testing` (new merge SHA) puts it back in scope — retest it in the same tick if other scope tickets are also open.
 - Active/QA-retest scope JQL: `parent = <EPIC-KEY> AND statusCategory != Done AND status not in ("To Do","On Hold")`.
 - QA *implementation* (impl-qa) scope JQL: `parent = <EPIC-KEY> AND labels = impl-qa AND status = "To Do"`.
-- **Same-tick completion:** move `impl-qa` To Do → **In Progress** only when you will **Done** the ticket in **this same tick**. Gate rejects `transition` + `SKIP_DEV`, and `retest_attempted` + `SKIP_DEV`. Multi-hour charters → split subtasks or dedicated run — not partial 15m slices.
+- **Same-tick completion:** autotake `impl-qa` To Do → **In Progress** only when starting a **marathon** (work until Done) or finishing a subtask same session — never **`SKIP_DEV`**. **Marathon:** no `tick_end`/re-arm until **Done**; dev scope **waits**.
 
 ### Machine DoD for auto-Done (all must hold)
 1. Two-pass retest **PASS** against the **canonical source** (detail page / DB / API), not a weaker proxy.

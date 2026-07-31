@@ -277,11 +277,11 @@ GATE_FAIL2=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC2=$?
 echo "$GATE_FAIL2" | grep -qi "missing dod_check" && ok "factory_tick_gate requires dod_check" || no "factory_tick_gate dod_check requirement"
 ./scripts/factory_log.sh "$SLUG" TST-99 handoff_read >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-99 --title "Selftest gate ticket 99" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-99 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-99 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 handoff_read >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-100 --title "Selftest gate ticket 100" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 transition to=In\ Progress reason="env blocked" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-100 dod_check verdict=RETURN_DEV bug_filed=TST-200 transition=In\ Progress openspec_read=true dev_handoff=handoff/TST-100.md retest_attempted=true alternate_locators_tried=true feature_steps_executed=true >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-100 dod_check verdict=RETURN_DEV bug_filed=TST-200 transition=In\ Progress openspec_read=true openspec_req=REQ-TEST dev_handoff=handoff/TST-100.md retest_attempted=true alternate_locators_tried=true feature_steps_executed=true bug_recording_attached=true bug_screenshot_attached=true >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" >/dev/null && ok "factory_tick_gate opens with terminal dod_check" || no "factory_tick_gate should open"
 ./scripts/factory_log.sh "$SLUG" TST-102 dod_check verdict=BLOCKED bug_filed=TST-201 blocker_note="legacy" >/dev/null 2>&1 || true
 GATE_FAIL4=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-102 2>&1)
@@ -423,7 +423,7 @@ echo "== 17. Factory tick gate — FAIL and SKIP_DEV =="
 ./scripts/factory_log.sh "$SLUG" TST-200 handoff_read >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-200 --title "Selftest FAIL terminal" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-200 transition to=In\ Progress reason=regression >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-200 dod_check verdict=FAIL reason=regression bug_filed=TST-300 openspec_read=true dev_handoff=handoff/TST-200.md retest_attempted=true feature_steps_executed=true two_pass=true transition=In\ Progress >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-200 dod_check verdict=FAIL reason=regression bug_filed=TST-300 openspec_read=true openspec_req=REQ-TEST dev_handoff=handoff/TST-200.md retest_attempted=true feature_steps_executed=true two_pass=true transition=In\ Progress bug_recording_attached=true bug_screenshot_attached=true >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" --keys TST-200 >/dev/null && ok "factory_tick_gate accepts FAIL with full DoD" || no "factory_tick_gate FAIL terminal"
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-ok >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-201 count=1 >/dev/null
@@ -457,6 +457,32 @@ echo "== 17b. Factory tick gate — same-tick completion =="
 GATE_SAME=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-204 2>&1)
 echo "$GATE_SAME" | grep -qi "work started" && ok "factory_tick_gate rejects SKIP_DEV after work started" || no "factory_tick_gate same-tick work guard"
 echo "$GATE_SAME" | grep -qi "defer" && ok "factory_tick_gate rejects defer after autotake" || no "factory_tick_gate autotake completion guard"
+
+echo "== 17c. Factory tick gate — impl-qa marathon =="
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-impl-qa-skip >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-205 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-205 handoff_read status=In\ Progress labels=impl-qa >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-205 --title "Selftest impl-qa SKIP forbidden" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-205 dod_check verdict=SKIP_DEV note="monitor" jira_status=In\ Progress >/dev/null
+GATE_IQA1=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-205 2>&1)
+echo "$GATE_IQA1" | grep -qi "impl-qa" && ok "factory_tick_gate rejects SKIP_DEV on impl-qa" || no "factory_tick_gate impl-qa SKIP guard"
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-impl-qa-marathon >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-206 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-206 handoff_read status=In\ Progress labels=impl-qa >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-206 --title "Selftest impl-qa QA_CONTINUE forbidden in marathon" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-206 dod_check verdict=QA_CONTINUE jira_status=In\ Progress openspec_read=true qa_work_done=true charter_slice="Phase1" charter_artifact=runs/test/execution-log.md note="charter continues" >/dev/null
+GATE_IQA2=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-206 2>&1)
+echo "$GATE_IQA2" | grep -qi "marathon" && ok "factory_tick_gate rejects QA_CONTINUE during impl-qa marathon" || no "factory_tick_gate marathon QA_CONTINUE guard"
+
+echo "== 17d. Factory tick gate — bug evidence package =="
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-bug-evidence >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-207 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-207 handoff_read status=Validate/Testing >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-207 --title "Selftest bug evidence required" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-207 dod_check verdict=FAIL bug_filed=TST-300 openspec_read=true dev_handoff=handoff/TST-207.md retest_attempted=true feature_steps_executed=true transition=In\ Progress >/dev/null
+GATE_EV=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-207 2>&1)
+echo "$GATE_EV" | grep -qi "bug_recording_attached" && ok "factory_tick_gate requires bug recording" || no "factory_tick_gate bug recording"
+echo "$GATE_EV" | grep -qi "bug_screenshot_attached" && ok "factory_tick_gate requires bug screenshot" || no "factory_tick_gate bug screenshot"
 
 echo "== 17b. record_retest auth gate (exit 3) =="
 # Offline: stub playwright so we exercise expectAuthenticated without a browser.
