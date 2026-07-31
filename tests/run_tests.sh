@@ -309,8 +309,22 @@ assert mod.should_report_outcome(outcome) is False
 PY
 have "scripts/qa_tick_notify.py"
 have "scripts/test_tick_notify.sh"
+have "scripts/arm_qa_loop.sh"
 grep_ok "QA_FACTORY_TEAMS_WEBHOOK_URL" "projects/_template/jira.env.example" "template documents QA Teams webhook"
 grep_ok "QA_FACTORY_TEAMS_WEBHOOK_URL" ".cursor/skills/qa-loop/SKILL.md" "qa-loop documents Teams notify on scope --log"
+python3 - <<'PY' && ok "notify_from_scope quiet without webhook" || no "notify_from_scope must stay quiet when unset"
+import importlib.util, sys, os
+spec = importlib.util.spec_from_file_location("qa_tick_notify", "scripts/qa_tick_notify.py")
+mod = importlib.util.module_from_spec(spec)
+sys.modules["qa_tick_notify"] = mod
+spec.loader.exec_module(mod)
+# Ensure no webhook in env for this process
+for k in ("QA_FACTORY_TEAMS_WEBHOOK_URL", "AGENT_TEAMS_WEBHOOK_URL", "DEV_FACTORY_TEAMS_WEBHOOK_URL"):
+    os.environ.pop(k, None)
+out = mod.notify_from_scope(slug="demo", keys=["ABC-1"], cfg={}, report=False)
+assert out.get("reason") == "not_configured", out
+assert mod.should_report_outcome(out) is False
+PY
 
 echo "== 12b. Factory tick gate =="
 # Fresh tick with no scope_check yet (prior sections may have logged one).

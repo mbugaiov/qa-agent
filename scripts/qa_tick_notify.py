@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Teams Adaptive Card notification for QA factory tick (wake / idle).
 
-Mirrors personal/dev-agent/lib/devFactoryTickNotify.ts.
+Mirrors Hephaestus / dev-factory tick notify (Adaptive Card + optional webhook).
 
 Webhook (optional; same Power Automate channel as Hephaestus when URLs match):
   QA_FACTORY_TEAMS_WEBHOOK_URL  (preferred)
@@ -26,7 +26,7 @@ from urllib.request import Request, urlopen
 
 TICK_NOTIFY_FAILED = "QA_TICK_NOTIFY_FAILED"
 DEFAULT_INTERVAL_SEC = 1200
-NEXT_ON_DEMAND = "not scheduled"
+DEFAULT_POST_TIMEOUT_SEC = 8.0
 
 
 def load_env_file(path: str) -> dict[str, str]:
@@ -231,7 +231,7 @@ def post_qa_tick_notify(
     issues: list[dict[str, str]] | None = None,
     next_wake_utc: str | None = None,
     webhook_url: str | None = None,
-    timeout: float = 20.0,
+    timeout: float = DEFAULT_POST_TIMEOUT_SEC,
 ) -> dict[str, Any]:
     check = check_webhook_url(webhook_url if webhook_url is not None else get_teams_webhook_url())
     if not check["ok"]:
