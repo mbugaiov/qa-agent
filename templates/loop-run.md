@@ -20,7 +20,7 @@
 
 **Security** is not per tick — run on `exploratory` and `regression` runs (skill `qa-security`).
 
-**Start loop (Agent chat):** `/loop 3600 AGENT_LOOP_WAKE_<purpose>` — see skill `qa-loop` (interval in seconds; not a bash command).
+**Start loop (Agent chat):** `QA_LOOP_INTERVAL_SEC=1200 bash scripts/arm_qa_loop.sh <slug>` — execution-only wakes (see skill `qa-loop`). Legacy: `/loop 1200 AGENT_LOOP_WAKE_<slug>qa`.
 
 ## Per-ticket checklist (copy per scope key each tick)
 

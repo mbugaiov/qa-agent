@@ -61,7 +61,9 @@ comments alone are **not** tick-complete.
 ```bash
 eval "$(./scripts/jira_scope.sh <slug> --log --shell)"
 # Sets: count, SCOPE_COUNT, keys, SCOPE_KEYS — use either count or SCOPE_COUNT (both set).
-# --log writes scope_check to the factory ledger (required for factory_tick_gate.sh).
+# --log writes scope_check to the factory ledger (required for factory_tick_gate.sh)
+# and posts an optional Teams Adaptive Card (scope + next wake) when
+# QA_FACTORY_TEAMS_WEBHOOK_URL is set (same channel as Hephaestus when URLs match).
 echo "scope count=${SCOPE_COUNT:-$count} keys=${SCOPE_KEYS:-$keys}"
 ```
 **Forbidden:** checking `$SCOPE_COUNT` without `--log --shell`; logging `scope_check count=0` by hand; skipping scope when Jira is configured.
@@ -82,7 +84,28 @@ echo "scope count=${SCOPE_COUNT:-$count} keys=${SCOPE_KEYS:-$keys}"
 `exploratory` or `tick_end` until every scope key has `handoff_read` + terminal `dod_check`.
 Generic STG smoke is **prep only**, not a substitute for feature retest.
 
-**Never re-arm the loop sleeper until step 4 passes** (unless user explicitly requests monitor-only mode).
+**Never re-arm the loop sleeper until step 4 passes** (unless user explicitly requests monitor-only mode — **deprecated; do not use**).
+
+## Loop wake — execution only (mandatory)
+
+Cursor loop sleepers and `notify_on_output` may deliver a shell task whose title says **"Briefly inform the user…"**. That title is **not** permission to skip work.
+
+| Mode | Allowed? | Behavior |
+|------|----------|----------|
+| **Execution** | **Always** | Full tick per **Tick workflow** above — scope + gate + exploratory + ledger |
+| **Notify-only** | **Forbidden** | Status summary without `tick_start`…`tick_end`, or "nothing to do" without running `jira_scope.sh` |
+
+**On every wake (before replying to the user):**
+
+1. Read `project-memory.md` → active run + cadence.
+2. `factory_log.sh … _loop tick_start …`
+3. `eval "$(./scripts/jira_scope.sh <slug> --log --shell)"` — **never assume scope empty**.
+4. Complete scope DoD for **all** keys; then exploratory if gate allows; then `tick_end`.
+5. Reply with a **short post-execution summary** (tick #, scope outcome, STG build, next wake).
+
+**Anti-pattern:** answering the wake notification with ledger trivia or aborted-task cleanup **without** running the tick — caused multi-hour gaps when chat was idle but sleepers kept firing.
+
+Arm/re-arm via `scripts/arm_qa_loop.sh <slug>` so the sleeper prompt carries the execution contract.
 
 ## impl-qa marathon mode (mandatory when user or charter requires full completion)
 

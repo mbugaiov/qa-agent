@@ -260,6 +260,92 @@ grep -q 'RUN_PREP' scripts/run_automation.sh \
   && ok "run_automation prep is --prep opt-in only" \
   || no "run_automation must not auto-prep on --stg alone"
 
+echo "== 12a2. QA Teams tick notify (offline) =="
+python3 - <<'PY' && ok "qa_tick_notify builders + webhook checks" || no "qa_tick_notify unit checks"
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("qa_tick_notify", "scripts/qa_tick_notify.py")
+mod = importlib.util.module_from_spec(spec)
+sys.modules["qa_tick_notify"] = mod
+spec.loader.exec_module(mod)
+
+wake = mod.build_tick_notify_summary(
+    slug="demo",
+    kind="wake",
+    count=2,
+    issues=[{"key": "TST-1", "summary": "Retest A"}, {"key": "TST-2", "summary": "Retest B"}],
+    next_wake_utc="2099-01-01 00:00:00 UTC",
+)
+assert "QA factory execute" in wake and "TST-1" in wake and "Next tick" in wake, wake
+idle = mod.build_tick_notify_summary(slug="demo", kind="idle", next_wake_utc="2099-01-01 00:00:00 UTC")
+assert "QA factory idle" in idle, idle
+body = mod.build_tick_notify_webhook_body(
+    slug="demo",
+    kind="wake",
+    count=2,
+    issues=[{"key": "TST-1", "summary": "Retest A"}, {"key": "TST-2", "summary": "Retest B"}],
+    next_wake_utc="2099-01-01 00:00:00 UTC",
+)
+assert body["type"] == "message"
+facts = body["attachments"][0]["content"]["body"][1]["facts"]
+titles = {f["title"] for f in facts}
+assert "Queue" in titles and "Next tick (UTC)" in titles, titles
+
+assert mod.check_webhook_url(None)["problem"] == "not_configured"
+assert mod.check_webhook_url("")["problem"] == "not_configured"
+assert mod.check_webhook_url("http://insecure.test/hook")["problem"] == "not_https"
+bad = mod.check_webhook_url(
+    "https://prod-1.westus.logic.azure.com/workflows/abc/triggers/manual/paths/invoke?api-version=2016-06-01"
+)
+assert bad["problem"] == "missing_signature", bad
+ok_url = mod.check_webhook_url(
+    "https://prod-1.westus.logic.azure.com/workflows/abc/triggers/manual/paths/invoke?api-version=2016-06-01&sig=SECRETSIG"
+)
+assert ok_url["ok"] is True
+
+# Quiet not_configured when posting with empty webhook
+outcome = mod.post_qa_tick_notify(slug="demo", kind="idle", webhook_url="")
+assert outcome["delivered"] is False and outcome["reason"] == "not_configured"
+assert mod.should_report_outcome(outcome) is False
+PY
+have "scripts/qa_tick_notify.py"
+have "scripts/test_tick_notify.sh"
+have "scripts/arm_qa_loop.sh"
+# Validation only — do not start the sleeper.
+! QA_LOOP_INTERVAL_SEC='1200;echo PWNED' bash scripts/arm_qa_loop.sh demo >/dev/null 2>&1 \
+  && ok "arm_qa_loop rejects non-numeric interval" \
+  || no "arm_qa_loop must reject non-numeric interval"
+! bash scripts/arm_qa_loop.sh "bad'slug" >/dev/null 2>&1 \
+  && ok "arm_qa_loop rejects invalid slug" \
+  || no "arm_qa_loop must reject invalid slug"
+grep_ok "QA_FACTORY_TEAMS_WEBHOOK_URL" "projects/_template/jira.env.example" "template documents QA Teams webhook"
+grep_ok "QA_FACTORY_TEAMS_WEBHOOK_URL" ".cursor/skills/qa-loop/SKILL.md" "qa-loop documents Teams notify on scope --log"
+python3 - <<'PY' && ok "notify_from_scope quiet without webhook" || no "notify_from_scope must stay quiet when unset"
+import importlib.util, sys, os
+spec = importlib.util.spec_from_file_location("qa_tick_notify", "scripts/qa_tick_notify.py")
+mod = importlib.util.module_from_spec(spec)
+sys.modules["qa_tick_notify"] = mod
+spec.loader.exec_module(mod)
+# Ambient webhook must NOT leak when cfg (project file) is provided but omits webhook.
+ambient = "https://prod-1.westus.logic.azure.com/workflows/ambient/triggers/manual/paths/invoke?api-version=2016-06-01&sig=AMBIENT"
+os.environ["DEV_FACTORY_TEAMS_WEBHOOK_URL"] = ambient
+os.environ["AGENT_TEAMS_WEBHOOK_URL"] = ambient
+os.environ["QA_FACTORY_TEAMS_WEBHOOK_URL"] = ambient
+out = mod.notify_from_scope(slug="demo", keys=["ABC-1"], cfg={}, report=False)
+assert out.get("reason") == "not_configured", out
+assert mod.should_report_outcome(out) is False
+# Empty file values also mean unset (quiet), not fall through to ambient.
+out2 = mod.notify_from_scope(
+    slug="demo", keys=[], cfg={"QA_FACTORY_TEAMS_WEBHOOK_URL": ""}, report=False
+)
+assert out2.get("reason") == "not_configured", out2
+# File value wins when set.
+file_url = "https://prod-1.westus.logic.azure.com/workflows/file/triggers/manual/paths/invoke?api-version=2016-06-01&sig=FILE"
+assert mod.get_teams_webhook_url({"QA_FACTORY_TEAMS_WEBHOOK_URL": file_url}) == file_url
+assert mod.get_teams_webhook_url({}) is None  # file-only empty → None even if ambient set
+for k in ("QA_FACTORY_TEAMS_WEBHOOK_URL", "AGENT_TEAMS_WEBHOOK_URL", "DEV_FACTORY_TEAMS_WEBHOOK_URL"):
+    os.environ.pop(k, None)
+PY
+
 echo "== 12b. Factory tick gate =="
 # Fresh tick with no scope_check yet (prior sections may have logged one).
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-no-scope >/dev/null
