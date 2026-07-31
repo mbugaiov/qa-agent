@@ -192,7 +192,7 @@ If still blocked:
 
 | Mistake | Why wrong | Fix |
 |---------|-----------|-----|
-| **`SKIP_DEV` on `impl-qa`** | QA-owned charter; RQ-1929 monitor-only ticks | **`QA_CONTINUE`** + charter slice + artifact update |
+| **`SKIP_DEV` on `impl-qa`** | QA-owned charter; monitor-only ticks on active charter | **`QA_CONTINUE`** + charter slice + artifact update |
 | `SKIP_DEV` while Jira is **Validate/Testing** | Dev handed off; QA must retest | Full DoD → **Done** or **RETURN_DEV** |
 | `dod_check jira_status=In Progress` but handoff says **V/T** | Stale handoff status; gate compares to `handoff_read` | Re-run `jira_handoff.sh --log`; use live status |
 | Exploratory spec before scope retest on open **V/T** | Scope work deferred | Finish scope `dod_check` first; gate blocks exploratory |
