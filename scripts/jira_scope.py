@@ -14,11 +14,13 @@ If no epic but JIRA_PROJECT_KEY is set:
 (Never uses a bare project key as parent= — parent expects an issue key.)
 
 Prints keys (comma-separated) and count on stdout; --json emits {"keys":[],"count":N,"jql":"..."}.
-With --log, appends scope_check to the factory ledger via factory_log.sh.
+With --log, appends scope_check to the factory ledger via factory_log.sh and posts an
+optional Teams Adaptive Card (QA_FACTORY_TEAMS_WEBHOOK_URL) with scope + next wake.
 """
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import re
@@ -34,6 +36,37 @@ except ImportError:
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATUS_CLAUSE = 'status in ("In Progress", "Validate/Testing")'
+
+
+def _load_qa_tick_notify():
+    path = os.path.join(ROOT, "scripts", "qa_tick_notify.py")
+    spec = importlib.util.spec_from_file_location("qa_tick_notify", path)
+    if spec is None or spec.loader is None:
+        return None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def maybe_notify_teams(
+    slug: str,
+    keys: list[str],
+    cfg: dict[str, str],
+    issues: list[dict[str, str]] | None = None,
+) -> None:
+    """Best-effort Teams card after --log. Never fails the scope query."""
+    try:
+        mod = _load_qa_tick_notify()
+        if mod is None:
+            return
+        mod.notify_from_scope(slug=slug, keys=keys, issues=issues, cfg=cfg, report=True)
+    except Exception as err:  # noqa: BLE001 — notify must not break tick
+        payload = {
+            "slug": slug,
+            "reason": "exception",
+            "detail": str(err),
+        }
+        print(f"QA_TICK_NOTIFY_FAILED {json.dumps(payload)}", file=sys.stderr)
 
 
 def is_placeholder(v: str) -> bool:
@@ -125,6 +158,7 @@ def main() -> int:
                 print("inactive=1")
         if a.log:
             log_scope_check(slug, [])
+            # No Teams card when Jira is inactive (template / unconfigured).
         return 0
 
     jql = a.jql or default_jql(cfg)
@@ -141,8 +175,15 @@ def main() -> int:
         print(f"ERROR jira search: {r.status_code} {r.text}", file=sys.stderr)
         return 1
     data = r.json()
-    issues = data.get("issues") or []
-    keys = [i["key"] for i in issues]
+    raw_issues = data.get("issues") or []
+    keys = [i["key"] for i in raw_issues]
+    issue_summaries = [
+        {
+            "key": i["key"],
+            "summary": (i.get("fields") or {}).get("summary") or i["key"],
+        }
+        for i in raw_issues
+    ]
     payload = {"keys": keys, "count": len(keys), "jql": jql, "inactive": False}
     if a.json:
         print(json.dumps(payload, indent=2))
@@ -163,6 +204,7 @@ def main() -> int:
 
     if a.log:
         log_scope_check(slug, keys)
+        maybe_notify_teams(slug, keys, cfg, issue_summaries)
     return 0
 
 

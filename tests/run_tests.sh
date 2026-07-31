@@ -260,6 +260,58 @@ grep -q 'RUN_PREP' scripts/run_automation.sh \
   && ok "run_automation prep is --prep opt-in only" \
   || no "run_automation must not auto-prep on --stg alone"
 
+echo "== 12a2. QA Teams tick notify (offline) =="
+python3 - <<'PY' && ok "qa_tick_notify builders + webhook checks" || no "qa_tick_notify unit checks"
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("qa_tick_notify", "scripts/qa_tick_notify.py")
+mod = importlib.util.module_from_spec(spec)
+sys.modules["qa_tick_notify"] = mod
+spec.loader.exec_module(mod)
+
+wake = mod.build_tick_notify_summary(
+    slug="lrm",
+    kind="wake",
+    count=2,
+    issues=[{"key": "TST-1", "summary": "Retest A"}, {"key": "TST-2", "summary": "Retest B"}],
+    next_wake_utc="2099-01-01 00:00:00 UTC",
+)
+assert "QA factory execute" in wake and "TST-1" in wake and "Next tick" in wake, wake
+idle = mod.build_tick_notify_summary(slug="lrm", kind="idle", next_wake_utc="2099-01-01 00:00:00 UTC")
+assert "QA factory idle" in idle, idle
+body = mod.build_tick_notify_webhook_body(
+    slug="lrm",
+    kind="wake",
+    count=2,
+    issues=[{"key": "TST-1", "summary": "Retest A"}, {"key": "TST-2", "summary": "Retest B"}],
+    next_wake_utc="2099-01-01 00:00:00 UTC",
+)
+assert body["type"] == "message"
+facts = body["attachments"][0]["content"]["body"][1]["facts"]
+titles = {f["title"] for f in facts}
+assert "Queue" in titles and "Next tick (UTC)" in titles, titles
+
+assert mod.check_webhook_url(None)["problem"] == "not_configured"
+assert mod.check_webhook_url("")["problem"] == "not_configured"
+assert mod.check_webhook_url("http://insecure.test/hook")["problem"] == "not_https"
+bad = mod.check_webhook_url(
+    "https://prod-1.westus.logic.azure.com/workflows/abc/triggers/manual/paths/invoke?api-version=2016-06-01"
+)
+assert bad["problem"] == "missing_signature", bad
+ok_url = mod.check_webhook_url(
+    "https://prod-1.westus.logic.azure.com/workflows/abc/triggers/manual/paths/invoke?api-version=2016-06-01&sig=SECRETSIG"
+)
+assert ok_url["ok"] is True
+
+# Quiet not_configured when posting with empty webhook
+outcome = mod.post_qa_tick_notify(slug="lrm", kind="idle", webhook_url="")
+assert outcome["delivered"] is False and outcome["reason"] == "not_configured"
+assert mod.should_report_outcome(outcome) is False
+PY
+have "scripts/qa_tick_notify.py"
+have "scripts/test_tick_notify.sh"
+grep_ok "QA_FACTORY_TEAMS_WEBHOOK_URL" "projects/_template/jira.env.example" "template documents QA Teams webhook"
+grep_ok "QA_FACTORY_TEAMS_WEBHOOK_URL" ".cursor/skills/qa-loop/SKILL.md" "qa-loop documents Teams notify on scope --log"
+
 echo "== 12b. Factory tick gate =="
 # Fresh tick with no scope_check yet (prior sections may have logged one).
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-no-scope >/dev/null
