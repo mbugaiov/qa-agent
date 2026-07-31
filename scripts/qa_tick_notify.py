@@ -289,11 +289,21 @@ def notify_from_scope(
     cfg: dict[str, str] | None = None,
     report: bool = True,
 ) -> dict[str, Any]:
-    """Post wake/idle card after jira_scope --log. Quiet when webhook unset."""
+    """Post wake/idle card after jira_scope --log. Quiet when webhook unset.
+
+    STRICT per-project isolation: when ``cfg`` is provided (project
+    ``.secrets/jira.env``), the webhook is resolved from that file only —
+    ambient ``*_TEAMS_WEBHOOK_URL`` env vars are ignored (Unset = quiet).
+    """
+    # Webhook: file-only when cfg provided (match create_jira_issue.resolve_config).
+    if cfg is not None:
+        webhook = get_teams_webhook_url(cfg)
+    else:
+        webhook = get_teams_webhook_url()
+    # Timing hints may come from ambient or file; not used for cross-project secrets.
     env = dict(os.environ)
     if cfg:
         env.update({k: v for k, v in cfg.items() if v})
-    webhook = get_teams_webhook_url(env)
     issue_list = issues or [{"key": k, "summary": k} for k in keys]
     kind = "idle" if not keys else "wake"
     try:
@@ -304,13 +314,14 @@ def notify_from_scope(
         epoch_env=env.get("QA_FACTORY_NEXT_WAKE_EPOCH", ""),
         interval_sec=interval,
     )
+    # Pass "" (not None) so post_qa_tick_notify does not fall back to ambient env.
     outcome = post_qa_tick_notify(
         slug=slug,
         kind=kind,
         count=len(keys),
         issues=issue_list if kind == "wake" else None,
         next_wake_utc=next_wake,
-        webhook_url=webhook,
+        webhook_url=webhook or "",
     )
     if report and should_report_outcome(outcome):
         print(format_tick_notify_failure(slug, kind, outcome), file=sys.stderr)
@@ -349,8 +360,12 @@ def main() -> int:
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     proj = a.project or os.path.join(root, "projects", a.slug)
     cfg = load_env_file(os.path.join(proj, ".secrets", "jira.env"))
+    # File wins over ambient (setdefault would let a leftover shell webhook win).
     for k, v in cfg.items():
-        os.environ.setdefault(k, v)
+        if v:
+            os.environ[k] = v
+    # Resolve webhook from project file only — ambient unset/leftover ignored.
+    webhook = get_teams_webhook_url(cfg)
 
     if a.smoke:
         kind = "idle" if a.idle else "wake"
@@ -367,13 +382,14 @@ def main() -> int:
             issues=issues if kind == "wake" else None,
             next_wake_utc=a.next_wake
             or format_next_wake_utc(interval_sec=DEFAULT_INTERVAL_SEC),
+            webhook_url=webhook or "",
         )
         if outcome.get("delivered"):
             print(
                 f'TICK_NOTIFY_SMOKE_OK {{"slug":"{a.slug}","status":{outcome.get("status")},"kind":"{kind}"}}'
             )
             return 0
-        check = check_webhook_url(get_teams_webhook_url())
+        check = check_webhook_url(webhook or "")
         if not check["ok"] and check["problem"] == "not_configured":
             print(
                 f'TICK_NOTIFY_SMOKE_FAILED {{"slug":"{a.slug}","problem":"not_configured","detail":{json.dumps(check["detail"])}}}',
@@ -401,6 +417,7 @@ def main() -> int:
         count=len(keys),
         issues=issues if kind == "wake" else None,
         next_wake_utc=a.next_wake or None,
+        webhook_url=webhook or "",
     )
     if outcome.get("delivered"):
         print(json.dumps({"delivered": True, "kind": kind, "status": outcome.get("status")}))

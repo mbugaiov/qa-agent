@@ -325,12 +325,25 @@ spec = importlib.util.spec_from_file_location("qa_tick_notify", "scripts/qa_tick
 mod = importlib.util.module_from_spec(spec)
 sys.modules["qa_tick_notify"] = mod
 spec.loader.exec_module(mod)
-# Ensure no webhook in env for this process
-for k in ("QA_FACTORY_TEAMS_WEBHOOK_URL", "AGENT_TEAMS_WEBHOOK_URL", "DEV_FACTORY_TEAMS_WEBHOOK_URL"):
-    os.environ.pop(k, None)
+# Ambient webhook must NOT leak when cfg (project file) is provided but omits webhook.
+ambient = "https://prod-1.westus.logic.azure.com/workflows/ambient/triggers/manual/paths/invoke?api-version=2016-06-01&sig=AMBIENT"
+os.environ["DEV_FACTORY_TEAMS_WEBHOOK_URL"] = ambient
+os.environ["AGENT_TEAMS_WEBHOOK_URL"] = ambient
+os.environ["QA_FACTORY_TEAMS_WEBHOOK_URL"] = ambient
 out = mod.notify_from_scope(slug="demo", keys=["ABC-1"], cfg={}, report=False)
 assert out.get("reason") == "not_configured", out
 assert mod.should_report_outcome(out) is False
+# Empty file values also mean unset (quiet), not fall through to ambient.
+out2 = mod.notify_from_scope(
+    slug="demo", keys=[], cfg={"QA_FACTORY_TEAMS_WEBHOOK_URL": ""}, report=False
+)
+assert out2.get("reason") == "not_configured", out2
+# File value wins when set.
+file_url = "https://prod-1.westus.logic.azure.com/workflows/file/triggers/manual/paths/invoke?api-version=2016-06-01&sig=FILE"
+assert mod.get_teams_webhook_url({"QA_FACTORY_TEAMS_WEBHOOK_URL": file_url}) == file_url
+assert mod.get_teams_webhook_url({}) is None  # file-only empty → None even if ambient set
+for k in ("QA_FACTORY_TEAMS_WEBHOOK_URL", "AGENT_TEAMS_WEBHOOK_URL", "DEV_FACTORY_TEAMS_WEBHOOK_URL"):
+    os.environ.pop(k, None)
 PY
 
 echo "== 12b. Factory tick gate =="
