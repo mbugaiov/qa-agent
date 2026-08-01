@@ -286,9 +286,13 @@ body = mod.build_tick_notify_webhook_body(
     next_wake_utc="2099-01-01 00:00:00 UTC",
 )
 assert body["type"] == "message"
+title_block = body["attachments"][0]["content"]["body"][0]
+assert "Argus" in title_block["text"], title_block
+assert title_block["color"] == "Warning", title_block
 facts = body["attachments"][0]["content"]["body"][1]["facts"]
 titles = {f["title"] for f in facts}
-assert "Queue" in titles and "Next tick (UTC)" in titles, titles
+assert "Agent" in titles and "Queue" in titles and "Next tick (UTC)" in titles, titles
+assert any(f["title"] == "Agent" and "Argus" in f["value"] for f in facts)
 
 assert mod.check_webhook_url(None)["problem"] == "not_configured"
 assert mod.check_webhook_url("")["problem"] == "not_configured"
@@ -361,20 +365,22 @@ echo "$GATE_EMPTY" | grep -qi "scope empty" && ok "factory_tick_gate opens on co
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-99,TST-100 count=2 >/dev/null
 GATE_FAIL2=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EC2=$?
 echo "$GATE_FAIL2" | grep -qi "missing dod_check" && ok "factory_tick_gate requires dod_check" || no "factory_tick_gate dod_check requirement"
+TC_STEPS="tests/fixtures/tc-steps-sample.txt"
+TC_META=(--scenario SC-SELFTEST --req REQ-SELFTEST --steps-file "$TC_STEPS" --expected "Observable THEN outcome on canonical source")
 ./scripts/factory_log.sh "$SLUG" TST-99 handoff_read >/dev/null
-./scripts/ticket_tc.sh "$SLUG" TST-99 --title "Selftest gate ticket 99" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-99 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-99 --title "Selftest gate ticket 99" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-99 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-99.md >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 handoff_read >/dev/null
-./scripts/ticket_tc.sh "$SLUG" TST-100 --title "Selftest gate ticket 100" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-100 --title "Selftest gate ticket 100" "${TC_META[@]}" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 transition to=In\ Progress reason="env blocked" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-100 dod_check verdict=RETURN_DEV bug_filed=TST-200 transition=In\ Progress openspec_read=true openspec_req=REQ-TEST dev_handoff=handoff/TST-100.md retest_attempted=true alternate_locators_tried=true feature_steps_executed=true bug_recording_attached=true bug_screenshot_attached=true >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-100 dod_check verdict=RETURN_DEV bug_filed=TST-200 transition=In\ Progress openspec_read=true openspec_req=REQ-TEST dev_handoff=handoff/TST-100.md retest_attempted=true alternate_locators_tried=true feature_steps_executed=true bug_recording_attached=true bug_screenshot_attached=true scope_posted=true tc_path=test-cases/TC-TST-100.md >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" >/dev/null && ok "factory_tick_gate opens with terminal dod_check" || no "factory_tick_gate should open"
 ./scripts/factory_log.sh "$SLUG" TST-102 dod_check verdict=BLOCKED bug_filed=TST-201 blocker_note="legacy" >/dev/null 2>&1 || true
 GATE_FAIL4=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-102 2>&1)
 echo "$GATE_FAIL4" | grep -qi "BLOCKED" && ok "factory_tick_gate rejects BLOCKED" || no "factory_tick_gate should reject BLOCKED"
 ./scripts/factory_log.sh "$SLUG" TST-101 dod_check verdict=PARTIAL note="incomplete" >/dev/null 2>&1 || true
 ./scripts/factory_log.sh "$SLUG" TST-101 handoff_read >/dev/null 2>&1 || true
-./scripts/ticket_tc.sh "$SLUG" TST-101 --title "Selftest partial ticket" >/dev/null 2>&1 || true
+./scripts/ticket_tc.sh "$SLUG" TST-101 --title "Selftest partial ticket" "${TC_META[@]}" >/dev/null 2>&1 || true
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-101 count=1 >/dev/null
 GATE_FAIL3=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-101 2>&1)
 echo "$GATE_FAIL3" | grep -qi "PARTIAL" && ok "factory_tick_gate rejects PARTIAL" || no "factory_tick_gate should reject PARTIAL"
@@ -383,10 +389,12 @@ echo "== 12c. Ticket TC persist =="
 have scripts/ticket_tc.sh
 have scripts/ticket_tc.py
 chmod +x scripts/ticket_tc.sh 2>/dev/null || true
-./scripts/ticket_tc.sh "$SLUG" TST-TC1 --title "Ticket driven regression case" --scenario SC-001 --req REQ-001 >/dev/null \
+./scripts/ticket_tc.sh "$SLUG" TST-TC1 --title "Ticket driven regression case" --scenario SC-001 --req REQ-001 --steps-file "$TC_STEPS" --expected 'Login succeeds and dashboard loads' >/dev/null \
   && ok "ticket_tc creates TC from ticket" || no "ticket_tc create"
 [[ -f "projects/$SLUG/test-cases/TC-TST-TC1.md" ]] \
   && grep -q 'TST-TC1' "projects/$SLUG/test-cases/TC-TST-TC1.md" \
+  && grep -q 'Login succeeds and dashboard loads' "projects/$SLUG/test-cases/TC-TST-TC1.md" \
+  && grep -q 'primary user flow' "projects/$SLUG/test-cases/TC-TST-TC1.md" \
   && ok "ticket_tc writes Jira line in TC file" || no "ticket_tc file content"
 grep -q 'TST-TC1' "projects/$SLUG/project-memory.md" \
   && ok "ticket_tc updates regression index in project-memory" || no "ticket_tc memory index"
@@ -416,13 +424,13 @@ EOF
   && grep -qE '\| TST-HEAL \|' "projects/$SLUG/project-memory.md" \
   && ok "ticket_tc heals existing file missing Jira line" || no "ticket_tc heal orphan file"
 # (b) shorter key after longer key — exact cell match, not substring
-./scripts/ticket_tc.sh "$SLUG" TST-10 --title "longer key ten" >/dev/null
-./scripts/ticket_tc.sh "$SLUG" TST-1 --title "shorter key one" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-10 --title "longer key ten" "${TC_META[@]}" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-1 --title "shorter key one" "${TC_META[@]}" >/dev/null
 grep -qE '\| TST-10 \|' "projects/$SLUG/project-memory.md" \
   && grep -qE '\| TST-1 \|' "projects/$SLUG/project-memory.md" \
   && ok "ticket_tc indexes TST-1 and TST-10 as distinct rows" || no "ticket_tc substring key collision"
 # (c) --link onto TC that already has a different Jira key
-./scripts/ticket_tc.sh "$SLUG" TST-LINK-A --title "shared TC primary" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-LINK-A --title "shared TC primary" "${TC_META[@]}" >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-LINK-B --link TC-TST-LINK-A >/dev/null \
   && grep -qE '^\s*-\s*\*\*Jira:\*\*\s*TST-LINK-A' "projects/$SLUG/test-cases/TC-TST-LINK-A.md" \
   && grep -qE '^\s*-\s*\*\*Jira:\*\*\s*TST-LINK-B' "projects/$SLUG/test-cases/TC-TST-LINK-A.md" \
@@ -514,20 +522,20 @@ echo "== 17. Factory tick gate — FAIL and SKIP_DEV =="
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-ok >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-201 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-201 handoff_read >/dev/null
-./scripts/ticket_tc.sh "$SLUG" TST-201 --title "Selftest SKIP_DEV ok" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-201 --title "Selftest SKIP_DEV ok" "${TC_META[@]}" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-201 dod_check verdict=SKIP_DEV note="dev still coding" jira_status=In\ Progress >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" --keys TST-201 >/dev/null && ok "factory_tick_gate accepts SKIP_DEV in progress" || no "factory_tick_gate SKIP_DEV"
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-bad >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-202 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-202 handoff_read >/dev/null
-./scripts/ticket_tc.sh "$SLUG" TST-202 --title "Selftest SKIP_DEV bad status" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-202 --title "Selftest SKIP_DEV bad status" "${TC_META[@]}" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-202 dod_check verdict=SKIP_DEV note="wrong status" jira_status=Validate/Testing >/dev/null
 GATE_SKIP2=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-202 2>&1)
 echo "$GATE_SKIP2" | grep -qi "SKIP_DEV" && ok "factory_tick_gate rejects SKIP_DEV outside In Progress" || no "factory_tick_gate SKIP_DEV status guard"
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-lie >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-203 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-203 handoff_read status=Validate/Testing buildId=abc1234 >/dev/null
-./scripts/ticket_tc.sh "$SLUG" TST-203 --title "Selftest SKIP_DEV stale jira_status" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-203 --title "Selftest SKIP_DEV stale jira_status" "${TC_META[@]}" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-203 dod_check verdict=SKIP_DEV note="stale copy" jira_status=In\ Progress >/dev/null
 GATE_SKIP3=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-203 2>&1)
 echo "$GATE_SKIP3" | grep -qi "Validate/Testing" && ok "factory_tick_gate rejects SKIP_DEV when handoff is V/T" || no "factory_tick_gate V/T SKIP_DEV guard"
@@ -537,7 +545,7 @@ echo "== 17b. Factory tick gate — same-tick completion =="
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-same-tick >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-204 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-204 handoff_read status=In\ Progress >/dev/null
-./scripts/ticket_tc.sh "$SLUG" TST-204 --title "Selftest autotake defer forbidden" >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-204 --title "Selftest autotake defer forbidden" "${TC_META[@]}" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-204 transition to=In\ Progress reason=autotake >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-204 dod_check verdict=SKIP_DEV note="defer next tick" jira_status=In\ Progress retest_attempted=true feature_steps_executed=true >/dev/null
 GATE_SAME=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-204 2>&1)

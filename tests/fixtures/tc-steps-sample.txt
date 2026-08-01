@@ -1,0 +1,3 @@
+1. Open the app under test on STG.
+2. Execute the primary user flow for this ticket.
+3. Verify the outcome against the canonical source (detail / API / audit).

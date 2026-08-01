@@ -141,6 +141,11 @@ def build_tick_notify_summary(
     )
 
 
+# Adaptive Card title colour for Argus / QA (distinct from Hephaestus/Athena).
+QA_FACTORY_CARD_COLOR = "Warning"
+QA_FACTORY_AGENT_ID = "Argus / QA"
+
+
 def build_tick_notify_webhook_body(
     *,
     slug: str,
@@ -153,8 +158,11 @@ def build_tick_notify_webhook_body(
     summary = build_tick_notify_summary(
         slug=slug, kind=kind, count=count, issues=issues, next_wake_utc=next_wake_utc
     )
-    title = "QA factory idle" if kind == "idle" else "QA factory execute"
+    title = (
+        "Argus · QA factory idle" if kind == "idle" else "Argus · QA factory execute"
+    )
     facts: list[dict[str, str]] = [
+        {"title": "Agent", "value": QA_FACTORY_AGENT_ID},
         {"title": "Project", "value": slug},
         {"title": "Tick", "value": "idle" if kind == "idle" else "retest scope"},
         {"title": "Next tick (UTC)", "value": format_next_wake_utc(next_wake_utc)},
@@ -190,7 +198,7 @@ def build_tick_notify_webhook_body(
                             "text": title,
                             "weight": "Bolder",
                             "size": "Medium",
-                            "color": "Default" if kind == "idle" else "Accent",
+                            "color": QA_FACTORY_CARD_COLOR,
                             "wrap": True,
                         },
                         {"type": "FactSet", "facts": facts, "spacing": "Medium"},
