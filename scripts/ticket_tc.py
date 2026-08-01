@@ -6,7 +6,7 @@ Usage:
     python3 scripts/ticket_tc.py --project projects/<slug> --ticket RQ-1 --link TC-RQ-1
     python3 scripts/ticket_tc.py --project projects/<slug> --ticket RQ-1 --title "…" --log
 
-Design source: OpenSpec + handoff (agent fills --title, --steps-file, --scenario, --req).
+Design source: OpenSpec + handoff (agent fills --title, --steps-file, --expected, --scenario, --req).
 Creates test-cases/TC-<KEY>.md on first sight; idempotent if Jira key already mapped.
 Updates project-memory.md ## Regression suite table. With --log, appends tc_linked to factory ledger.
 """
@@ -94,6 +94,12 @@ def load_steps(steps_file: str | None) -> list[str]:
     return lines or ["1. See steps file — fill retest plan."]
 
 
+DEFAULT_EXPECTED = (
+    "Behaviour matches governing OpenSpec scenario (THEN clause) on live STG; "
+    "two-pass execution required."
+)
+
+
 def render_tc(
     tc_id: str,
     ticket: str,
@@ -101,8 +107,10 @@ def render_tc(
     scenario: str,
     req: str,
     steps: list[str],
+    expected: str | None = None,
 ) -> str:
     step_block = "\n".join(f"  {i + 1}. {s.lstrip('0123456789. ')}" for i, s in enumerate(steps))
+    expected_text = (expected or "").strip() or DEFAULT_EXPECTED
     return f"""# {tc_id} — {title}
 
 - **Type**: Acceptance
@@ -116,7 +124,7 @@ def render_tc(
 {step_block}
 
 ## Expected
-Behaviour matches governing OpenSpec scenario (THEN clause) on live STG; two-pass execution required.
+{expected_text}
 """
 
 
@@ -208,6 +216,10 @@ def main() -> int:
     ap.add_argument("--title", help="TC title (required when creating)")
     ap.add_argument("--link", help="Existing TC id to link (add Jira line if missing)")
     ap.add_argument("--steps-file", help="Optional steps (numbered lines)")
+    ap.add_argument(
+        "--expected",
+        help="Expected outcome (THEN / canonical source). Default: OpenSpec THEN placeholder.",
+    )
     ap.add_argument("--scenario", default="SC-TBD", help="Governing SC-* id")
     ap.add_argument("--req", default="REQ-TBD", help="Governing REQ-* id")
     ap.add_argument("--log", action="store_true", help="Append tc_linked to factory ledger")
@@ -271,7 +283,15 @@ def main() -> int:
 
     steps = load_steps(a.steps_file)
     path.write_text(
-        render_tc(tc_id, ticket, a.title.strip(), a.scenario.strip(), a.req.strip(), steps),
+        render_tc(
+            tc_id,
+            ticket,
+            a.title.strip(),
+            a.scenario.strip(),
+            a.req.strip(),
+            steps,
+            expected=a.expected,
+        ),
         encoding="utf-8",
     )
     rel = str(path.relative_to(project))
