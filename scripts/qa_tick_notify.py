@@ -144,6 +144,23 @@ def build_tick_notify_summary(
 # Adaptive Card title colour for Argus / QA (distinct from Hephaestus/Athena).
 QA_FACTORY_CARD_COLOR = "Warning"
 QA_FACTORY_AGENT_ID = "Argus / QA"
+QUEUE_MAX = 5
+
+
+def format_queue_lines(
+    issues: list[dict[str, str]],
+    pick_key: str,
+    max_items: int = QUEUE_MAX,
+) -> list[str]:
+    """Remaining scope lines (excludes pick) — one ticket per line for Teams."""
+    out: list[str] = []
+    for issue in issues:
+        if issue.get("key") == pick_key:
+            continue
+        out.append(f"• {issue['key']} — {issue['summary']}")
+        if len(out) >= max_items:
+            break
+    return out
 
 
 def build_tick_notify_webhook_body(
@@ -167,20 +184,44 @@ def build_tick_notify_webhook_body(
         {"title": "Tick", "value": "idle" if kind == "idle" else "retest scope"},
         {"title": "Next tick (UTC)", "value": format_next_wake_utc(next_wake_utc)},
     ]
+    queue_lines: list[str] = []
     if kind == "wake":
         facts.insert(0, {"title": "Scope", "value": str(count)})
         if issues:
             pick = issues[0]
-            facts.insert(0, {"title": "Pick", "value": f"{pick['key']} — {pick['summary']}"})
-        if len(issues) > 1:
-            facts.append(
-                {
-                    "title": "Queue",
-                    "value": " · ".join(
-                        f"{i['key']}: {i['summary']}" for i in issues[:5]
-                    ),
-                }
+            facts.insert(
+                0, {"title": "Pick", "value": f"{pick['key']} — {pick['summary']}"}
             )
+            queue_lines = format_queue_lines(issues, pick["key"])
+    body: list[dict[str, Any]] = [
+        {
+            "type": "TextBlock",
+            "text": title,
+            "weight": "Bolder",
+            "size": "Medium",
+            "color": QA_FACTORY_CARD_COLOR,
+            "wrap": True,
+        },
+        {"type": "FactSet", "facts": facts, "spacing": "Medium"},
+    ]
+    if queue_lines:
+        body.append(
+            {
+                "type": "TextBlock",
+                "text": "Queue",
+                "weight": "Bolder",
+                "spacing": "Medium",
+                "wrap": True,
+            }
+        )
+        body.append(
+            {
+                "type": "TextBlock",
+                "text": "\n".join(queue_lines),
+                "wrap": True,
+                "spacing": "Small",
+            }
+        )
     return {
         "type": "message",
         "summary": summary,
@@ -192,17 +233,7 @@ def build_tick_notify_webhook_body(
                     "type": "AdaptiveCard",
                     "version": "1.4",
                     "msteams": {"width": "Full"},
-                    "body": [
-                        {
-                            "type": "TextBlock",
-                            "text": title,
-                            "weight": "Bolder",
-                            "size": "Medium",
-                            "color": QA_FACTORY_CARD_COLOR,
-                            "wrap": True,
-                        },
-                        {"type": "FactSet", "facts": facts, "spacing": "Medium"},
-                    ],
+                    "body": body,
                 },
             }
         ],
