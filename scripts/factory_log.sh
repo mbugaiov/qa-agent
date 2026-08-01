@@ -55,8 +55,13 @@ for raw in extra:
     else:
         detail[raw] = True
 
+now = datetime.datetime.now(datetime.timezone.utc)
+# Millisecond precision (not just seconds): factory_tick_gate.sh orders/filters events by `ts`
+# string comparison (since_tick). Second-resolution timestamps let two events logged in the same
+# wall-clock second (routine for fast scripted ticks, e.g. this engine's own self-tests) tie or
+# invert order, corrupting tick-boundary detection. Still valid ISO-8601, still string-sortable.
 rec = {
-    "ts": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    "ts": now.strftime("%Y-%m-%dT%H:%M:%S.") + f"{now.microsecond // 1000:03d}Z",
     "ticket": ticket,
     "event": event,
     "agent": agent,

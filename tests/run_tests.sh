@@ -381,7 +381,50 @@ TC_META=(--scenario SC-SELFTEST --req REQ-SELFTEST --steps-file "$TC_STEPS" --ex
 ./scripts/ticket_tc.sh "$SLUG" TST-100 --title "Selftest gate ticket 100" "${TC_META[@]}" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 transition to=In\ Progress reason="env blocked" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 dod_check verdict=RETURN_DEV bug_filed=TST-200 transition=In\ Progress openspec_read=true openspec_req=REQ-TEST dev_handoff=handoff/TST-100.md retest_attempted=true alternate_locators_tried=true feature_steps_executed=true bug_recording_attached=true bug_screenshot_attached=true scope_posted=true tc_path=test-cases/TC-TST-100.md >/dev/null
+GATE_NO_DRAIN=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_NO_DRAIN_EC=$?
+echo "$GATE_NO_DRAIN" | grep -qi "backlog_drained" && ok "factory_tick_gate requires backlog_drained after real work" || no "factory_tick_gate backlog_drained requirement"
+./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=0 >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" >/dev/null && ok "factory_tick_gate opens with terminal dod_check" || no "factory_tick_gate should open"
+
+# Regression: after real work, a correct rescan to count=0 must still require backlog_drained
+# (completed keys drop off the latest scope_check — detection must use the union of all scans).
+# Sleep so tick_start ts is strictly after the prior tick's backlog_drained (ledger ts is 1s resolution).
+sleep 1
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-drain-empty-rescan >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-110 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-110 handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-110 --title "Selftest drain empty rescan" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-110 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-110.md >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys= count=0 >/dev/null
+GATE_EMPTY_RESCAN=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EMPTY_RESCAN_EC=$?
+[[ "$GATE_EMPTY_RESCAN_EC" -ne 0 ]] && echo "$GATE_EMPTY_RESCAN" | grep -qi "backlog_drained" \
+  && ok "factory_tick_gate requires backlog_drained after empty rescan (prior DONE)" \
+  || no "factory_tick_gate empty-rescan backlog_drained (got ec=$GATE_EMPTY_RESCAN_EC: $GATE_EMPTY_RESCAN)"
+./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=0 >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" >/dev/null \
+  && ok "factory_tick_gate opens empty rescan once backlog_drained logged" \
+  || no "factory_tick_gate should open after empty rescan + backlog_drained"
+
+# Regression: after real work, a rescan leaving only SKIP_DEV must still require backlog_drained.
+sleep 1
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-drain-skip-remainder >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-111 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-111 handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-111 --title "Selftest drain SKIP_DEV remainder done" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-111 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-111.md >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-112 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-112 handoff_read status=In\ Progress >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-112 --title "Selftest drain SKIP_DEV remainder skip" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-112 dod_check verdict=SKIP_DEV note="dev still coding" jira_status=In\ Progress >/dev/null
+GATE_SKIP_REMAIN=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_SKIP_REMAIN_EC=$?
+[[ "$GATE_SKIP_REMAIN_EC" -ne 0 ]] && echo "$GATE_SKIP_REMAIN" | grep -qi "backlog_drained" \
+  && ok "factory_tick_gate requires backlog_drained after SKIP_DEV-only rescan (prior DONE)" \
+  || no "factory_tick_gate SKIP_DEV-remainder backlog_drained (got ec=$GATE_SKIP_REMAIN_EC: $GATE_SKIP_REMAIN)"
+./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=1 >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" >/dev/null \
+  && ok "factory_tick_gate opens SKIP_DEV remainder once backlog_drained logged" \
+  || no "factory_tick_gate should open after SKIP_DEV remainder + backlog_drained"
+
 ./scripts/factory_log.sh "$SLUG" TST-102 dod_check verdict=BLOCKED bug_filed=TST-201 blocker_note="legacy" >/dev/null 2>&1 || true
 GATE_FAIL4=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-102 2>&1)
 echo "$GATE_FAIL4" | grep -qi "BLOCKED" && ok "factory_tick_gate rejects BLOCKED" || no "factory_tick_gate should reject BLOCKED"
@@ -739,6 +782,37 @@ if "## Cursor automated review" in body:
     body = body.split("## Cursor automated review", 1)[1]
 assert "Blocking issues" in body and "None" in body
 PY
+
+echo "== 19. Execution-only wake + backlog drain policy =="
+grep_ok "no notify-only" .cursor/rules/qa-engine.mdc "qa-engine rule states no notify-only path exists"
+grep_ok "wording of the triggering notification is irrelevant" .cursor/rules/qa-engine.mdc "qa-engine rule ignores wake title/wording"
+grep_ok "Drain the backlog" .cursor/rules/qa-engine.mdc "qa-engine rule mandates backlog draining"
+grep_ok "There is no notify-only mode" .cursor/skills/qa-loop/SKILL.md "qa-loop skill states no notify-only mode"
+grep_ok "Drain the backlog" .cursor/skills/qa-loop/SKILL.md "qa-loop skill has drain-the-backlog section"
+grep_ok "backlog_drained" .cursor/skills/qa-loop/SKILL.md "qa-loop skill documents backlog_drained event"
+grep_ok "backlog_drained" scripts/arm_qa_loop.sh "arm_qa_loop prompt requires backlog_drained"
+# PROMPT is embedded in a single-quoted echo inside the sleeper's `bash -c "..."` — a stray
+# apostrophe breaks that quoting and crashes the sleeper at wake time (regression: caught live).
+PROMPT_LINE=$(grep -c "^PROMPT=" scripts/arm_qa_loop.sh)
+[[ "$PROMPT_LINE" -eq 1 ]] && ok "arm_qa_loop has exactly one PROMPT assignment" || no "arm_qa_loop PROMPT assignment count"
+grep "^PROMPT=" scripts/arm_qa_loop.sh | grep -qv "'" \
+  && ok "arm_qa_loop PROMPT text has no apostrophes (sleeper quoting safe)" \
+  || no "arm_qa_loop PROMPT text must not contain apostrophes — breaks sleeper echo quoting"
+grep_ok "must NEVER contain an apostrophe" scripts/arm_qa_loop.sh "arm_qa_loop documents the apostrophe-quoting hazard"
+grep_ok "PROMPT contains an apostrophe" scripts/arm_qa_loop.sh "arm_qa_loop has a runtime guard against apostrophes in PROMPT"
+# Regression: ts must be millisecond-precision (not just seconds), or fast back-to-back events
+# (routine in scripted ticks / this very test suite) can tie/invert, corrupting since_tick ordering.
+./scripts/factory_log.sh "$SLUG" _loop ts_precision_check_a >/dev/null
+TS1=$(tail -n1 "projects/$SLUG/factory/runs/_loop.jsonl" | python3 -c "import json,sys; print(json.load(sys.stdin)['ts'])")
+echo "$TS1" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$' \
+  && ok "factory_log.sh writes millisecond-precision ts" \
+  || no "factory_log.sh ts must be millisecond-precision (got: $TS1)"
+grep_ok "backlog_drained" projects/_template/factory/schema.md "schema documents backlog_drained event"
+grep_ok "Backlog drain" projects/_template/factory/schema.md "schema explains backlog drain gate"
+# The one narrow, deliberate mention of the notification's wording exists only to say it's irrelevant.
+! grep -qi "is not permission to skip work" .cursor/skills/qa-loop/SKILL.md \
+  && ok "qa-loop skill no longer frames wake title as a soft exception" \
+  || no "qa-loop skill should not carve out the wake-title exception language"
 
 echo ""
 echo "RESULT: $PASS passed, $FAIL failed"
