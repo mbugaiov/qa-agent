@@ -101,11 +101,13 @@ must match handoff — stale `In Progress` while Jira is V/T closes the gate (st
 `feature_steps_executed=true` this tick ⇒ **`tick_end` requires `DONE`** (or `FAIL` / `RETURN_DEV` with
 full blocker fields). **`SKIP_DEV` after work started is rejected** (partial deferral anti-pattern).
 
-**Backlog drain (gate enforced):** whenever any scope key resolves `DONE`/`FAIL`/`RETURN_DEV` this tick,
+**Backlog drain (gate enforced):** whenever any ticket from **any** `scope_check` this tick resolves
+`DONE`/`FAIL`/`RETURN_DEV` (union of keys across rescans — not only the latest scan),
 `factory_tick_gate.sh` requires a `backlog_drained` event on `_loop.jsonl` before it opens — proof the
 agent re-ran `jira_scope.sh <slug> --log --shell` **again** after resolving scope, and either found
 nothing left (`count=0`) or confirmed the remainder is legitimately dev-owned `SKIP_DEV`. A tick that
 resolves one ticket and stops without this event is **closed**: "no backlog_drained event logged."
+Completed tickets that drop off a later empty/SKIP_DEV-only rescan still count as real work.
 
 ```bash
 ./scripts/factory_log.sh <slug> _loop backlog_drained count=0

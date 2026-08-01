@@ -385,6 +385,46 @@ GATE_NO_DRAIN=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_NO_DRAIN_EC=$
 echo "$GATE_NO_DRAIN" | grep -qi "backlog_drained" && ok "factory_tick_gate requires backlog_drained after real work" || no "factory_tick_gate backlog_drained requirement"
 ./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=0 >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" >/dev/null && ok "factory_tick_gate opens with terminal dod_check" || no "factory_tick_gate should open"
+
+# Regression: after real work, a correct rescan to count=0 must still require backlog_drained
+# (completed keys drop off the latest scope_check — detection must use the union of all scans).
+# Sleep so tick_start ts is strictly after the prior tick's backlog_drained (ledger ts is 1s resolution).
+sleep 1
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-drain-empty-rescan >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-110 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-110 handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-110 --title "Selftest drain empty rescan" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-110 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-110.md >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys= count=0 >/dev/null
+GATE_EMPTY_RESCAN=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EMPTY_RESCAN_EC=$?
+[[ "$GATE_EMPTY_RESCAN_EC" -ne 0 ]] && echo "$GATE_EMPTY_RESCAN" | grep -qi "backlog_drained" \
+  && ok "factory_tick_gate requires backlog_drained after empty rescan (prior DONE)" \
+  || no "factory_tick_gate empty-rescan backlog_drained (got ec=$GATE_EMPTY_RESCAN_EC: $GATE_EMPTY_RESCAN)"
+./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=0 >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" >/dev/null \
+  && ok "factory_tick_gate opens empty rescan once backlog_drained logged" \
+  || no "factory_tick_gate should open after empty rescan + backlog_drained"
+
+# Regression: after real work, a rescan leaving only SKIP_DEV must still require backlog_drained.
+sleep 1
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-drain-skip-remainder >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-111 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-111 handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-111 --title "Selftest drain SKIP_DEV remainder done" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-111 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-111.md >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-112 count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-112 handoff_read status=In\ Progress >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-112 --title "Selftest drain SKIP_DEV remainder skip" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-112 dod_check verdict=SKIP_DEV note="dev still coding" jira_status=In\ Progress >/dev/null
+GATE_SKIP_REMAIN=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_SKIP_REMAIN_EC=$?
+[[ "$GATE_SKIP_REMAIN_EC" -ne 0 ]] && echo "$GATE_SKIP_REMAIN" | grep -qi "backlog_drained" \
+  && ok "factory_tick_gate requires backlog_drained after SKIP_DEV-only rescan (prior DONE)" \
+  || no "factory_tick_gate SKIP_DEV-remainder backlog_drained (got ec=$GATE_SKIP_REMAIN_EC: $GATE_SKIP_REMAIN)"
+./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=1 >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" >/dev/null \
+  && ok "factory_tick_gate opens SKIP_DEV remainder once backlog_drained logged" \
+  || no "factory_tick_gate should open after SKIP_DEV remainder + backlog_drained"
+
 ./scripts/factory_log.sh "$SLUG" TST-102 dod_check verdict=BLOCKED bug_filed=TST-201 blocker_note="legacy" >/dev/null 2>&1 || true
 GATE_FAIL4=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-102 2>&1)
 echo "$GATE_FAIL4" | grep -qi "BLOCKED" && ok "factory_tick_gate rejects BLOCKED" || no "factory_tick_gate should reject BLOCKED"

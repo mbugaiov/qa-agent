@@ -123,9 +123,31 @@ TERMINAL = {"DONE", "FAIL", "RETURN_DEV", "SKIP_DEV", "QA_CONTINUE"}
 FORBIDDEN = {"PARTIAL", "DEFERRED", "PASS_PENDING", "BLOCKED"}
 errors = []
 
+def all_scope_keys_this_tick():
+    """Union of keys from every scope_check since tick_start.
+
+    Completed DONE/FAIL/RETURN_DEV tickets drop off the *latest* rescan (count=0 or
+    SKIP_DEV-only remainder). Drain detection must still see those earlier keys.
+    """
+    keys = []
+    seen = set()
+    for ev in loop_events:
+        if not since_tick(ev) or ev.get("event") != "scope_check":
+            continue
+        d = ev.get("detail") or {}
+        raw = d.get("keys") or []
+        if isinstance(raw, str):
+            raw = [k.strip() for k in raw.split(",") if k.strip()]
+        for k in raw:
+            k = str(k).strip()
+            if k and k not in seen:
+                seen.add(k)
+                keys.append(k)
+    return keys
+
 def has_real_work():
-    """True when any scope key resolved to DONE/FAIL/RETURN_DEV this tick (not just monitor verdicts)."""
-    for key in scope_keys:
+    """True when any ticket from any scope_check this tick resolved to DONE/FAIL/RETURN_DEV."""
+    for key in all_scope_keys_this_tick():
         for ev in reversed([ev for ev in load_events(runs_dir / f"{key}.jsonl") if since_tick(ev)]):
             if ev.get("event") == "dod_check":
                 if str((ev.get("detail") or {}).get("verdict", "")).upper() in ("DONE", "FAIL", "RETURN_DEV"):
@@ -138,8 +160,9 @@ def has_backlog_drained():
     return any(ev.get("event") == "backlog_drained" for ev in loop_events if since_tick(ev))
 
 # Backlog-drain check (skip for --keys targeted testing): whenever real ticket work happened this
-# tick (a DONE/FAIL/RETURN_DEV resolution), the agent must log a `backlog_drained` event as the
-# final step — proof that jira_scope.sh was re-run after resolving and the queue was checked again
+# tick (a DONE/FAIL/RETURN_DEV resolution on *any* key seen in any scope_check this tick — not
+# only the latest rescan), the agent must log a `backlog_drained` event as the final step —
+# proof that jira_scope.sh was re-run after resolving and the queue was checked again
 # (never stop at one pass while more work may exist).
 if not keys_arg and has_real_work() and not has_backlog_drained():
     errors.append(
