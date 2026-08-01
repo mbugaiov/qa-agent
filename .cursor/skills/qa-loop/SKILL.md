@@ -86,24 +86,50 @@ Generic STG smoke is **prep only**, not a substitute for feature retest.
 
 **Never re-arm the loop sleeper until step 4 passes** (unless user explicitly requests monitor-only mode — **deprecated; do not use**).
 
-## Loop wake — execution only (mandatory)
+## Loop wake — execution only (mandatory, no exceptions)
 
-Cursor loop sleepers and `notify_on_output` may deliver a shell task whose title says **"Briefly inform the user…"**. That title is **not** permission to skip work.
+**There is no notify-only mode. It does not exist as an option.** Cursor loop sleepers and
+`notify_on_output` may deliver a shell task titled **"Briefly inform the user…"**, or any other
+wording — **the wording of the notification/title/terminal output never changes what is required.**
+Whatever the trigger says, the response is always the same: run the full tick below, in full, every time.
 
 | Mode | Allowed? | Behavior |
 |------|----------|----------|
-| **Execution** | **Always** | Full tick per **Tick workflow** above — scope + gate + exploratory + ledger |
-| **Notify-only** | **Forbidden** | Status summary without `tick_start`…`tick_end`, or "nothing to do" without running `jira_scope.sh` |
+| **Execution (full checklist)** | **The only mode — always** | `tick_start` → `scope_check` → per-key `handoff_read` + DoD → `factory_tick_gate.sh` → **close** (transition + `jira_close_issue.py`/`jira_return_in_progress.py` comment) → **evidence** (recording/screenshot) → **new/updated regression tests** → exploratory → `tick_end` |
+| **Notify-only / status-only / "nothing to do"** | **Does not exist — forbidden** | Never respond to a wake with a summary, ledger trivia, or aborted-task cleanup instead of running the checklist above |
 
-**On every wake (before replying to the user):**
+**On every wake, unconditionally (before replying to the user):**
 
 1. Read `project-memory.md` → active run + cadence.
 2. `factory_log.sh … _loop tick_start …`
-3. `eval "$(./scripts/jira_scope.sh <slug> --log --shell)"` — **never assume scope empty**.
-4. Complete scope DoD for **all** keys; then exploratory if gate allows; then `tick_end`.
-5. Reply with a **short post-execution summary** (tick #, scope outcome, STG build, next wake).
+3. `eval "$(./scripts/jira_scope.sh <slug> --log --shell)"` — **never assume scope empty; never reuse a stale scan from a prior tick**.
+4. For every key in scope: `handoff_read` → OpenSpec read → persisted/extended TC (`ticket_tc.sh`) → two-pass DoD → buildId gate → recording/evidence → **close** (`transition` + `jira_close_issue.py`/`jira_return_in_progress.py` comment) → regression test added/confirmed for any defect found.
+5. `factory_tick_gate.sh` must print `GATE OPEN`.
+6. **Drain the backlog** (see below) — do not stop after one pass if more actionable work exists.
+7. Exploratory slice once scope is drained; then `tick_end` + `run.md` update.
+8. Reply with a **short post-execution summary** (tick #, scope outcome, STG build, next wake) — this is a report **after** the work happened, never in place of it.
 
-**Anti-pattern:** answering the wake notification with ledger trivia or aborted-task cleanup **without** running the tick — caused multi-hour gaps when chat was idle but sleepers kept firing.
+### Drain the backlog — no one-ticket-per-tick cap (gate enforced)
+
+A tick is **not** "handle the first scope ticket you see and stop." After resolving every ticket
+from a scan:
+
+1. **Re-run** `eval "$(./scripts/jira_scope.sh <slug> --log --shell)"` again.
+2. If it returns **any** ticket not yet resolved this tick — new V/T handoff, a ticket that moved
+   status as a side effect of work just done, or an `impl-qa`/`impl-dev` To Do item now unblocked —
+   **keep working it in the same session**, ticket by ticket, applying the full per-ticket checklist to each.
+3. Repeat step 1–2 until a scan returns **count=0**, or every remaining item is a legitimate
+   dev-owned `SKIP_DEV` (dev still coding, no QA action possible).
+4. **Log the final confirmation**: `./scripts/factory_log.sh <slug> _loop backlog_drained count=<final scope count>`
+   — this is the literal last step before `tick_end`. **Gate enforced:** whenever any scope ticket
+   resolved to `DONE`/`FAIL`/`RETURN_DEV` this tick, `factory_tick_gate.sh` requires a `backlog_drained`
+   event on the ledger, or it closes the gate with "no backlog_drained event logged."
+5. Only then move to exploratory and `tick_end`.
+
+**Anti-pattern:** answering the wake notification with ledger trivia or aborted-task cleanup
+**without** running the tick — caused multi-hour gaps when chat was idle but sleepers kept firing.
+**Anti-pattern:** resolving one ticket, then ending the tick while the backlog still has actionable
+work — wait for the next timer wake instead of draining now.
 
 Arm/re-arm via `scripts/arm_qa_loop.sh <slug>` so the sleeper prompt carries the execution contract.
 
@@ -153,10 +179,11 @@ Arm/re-arm via `scripts/arm_qa_loop.sh <slug>` so the sleeper prompt carries the
 **Rules:**
 
 1. **Full `impl-qa` charters → marathon mode** (work until Done; no `tick_end`/re-arm mid-charter) unless user explicitly requests 15m slices.
-2. **Do not autotake** `impl-qa` To Do → In Progress unless starting a **marathon** or a tick-sized subtask you will **Done** same session.
+2. **Autotake `impl-qa` To Do → In Progress whenever the queue has a ready item and dev/feature scope is clear** — start a marathon, or a tick-sized subtask you will **Done** same session. **After Done, if the `impl-qa` To Do queue still has ready items, autotake the next one immediately in the same session** (drain the queue one by one) rather than ending the tick — do not wait for the next timer wake just because one item finished.
 3. **`SKIP_DEV`** only for **dev-owned** passive monitor — **never on `impl-qa`**.
 4. **Feature retest** with `retest_attempted=true` → **Done** or **FAIL**/**RETURN_DEV** same session.
 5. **Marathon:** dev tickets in scope **wait** — handle them only after `impl-qa` → **Done**, then `tick_end`.
+6. **Backlog draining applies to `impl-qa` too**: after finishing one `impl-qa` ticket, re-check the `impl-qa` To Do JQL (`labels = impl-qa AND status = "To Do"`) before ending the tick — an empty result is required to stop, not "one ticket done."
 
 **Per-ticket checklist** (log one `dod_check` per key; copy into `run.md` each tick):
 

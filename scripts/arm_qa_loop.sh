@@ -24,7 +24,15 @@ if [[ ! "$INTERVAL" =~ ^[0-9]+$ ]]; then
 fi
 
 SENTINEL="AGENT_LOOP_WAKE_${SLUG}qa"
-PROMPT="EXECUTE qa-loop tick NOW for ${SLUG}: tick_start → jira_scope --log --shell → per-ticket handoff/DoD → factory_tick_gate → exploratory → tick_end → run.md. Forbidden: notify-only or status-only replies."
+# NOTE: PROMPT is embedded inside a single-quoted echo string in the sleeper below —
+# it must NEVER contain an apostrophe/single-quote character (e.g. write "the task" not
+# "the task's"), or the sleeper shell command breaks with a syntax error at wake time.
+PROMPT="EXECUTE qa-loop tick NOW for ${SLUG} - full checklist every time, no notify-only mode exists regardless of the wake title or wording: tick_start -> jira_scope --log --shell -> per-ticket handoff+OpenSpec+TC+DoD -> factory_tick_gate.sh -> close (transition + jira_close_issue.py/jira_return_in_progress.py comment) -> evidence (recording/screenshot) -> new/updated regression tests -> exploratory -> tick_end -> run.md. Drain the backlog: after resolving scope, re-run jira_scope.sh again and keep working ticket by ticket (including impl-qa To Do) until a scan returns count=0 or only dev-owned SKIP_DEV remains, then log factory_log.sh backlog_drained as the final step before tick_end - do not stop at one ticket per tick. Forbidden: notify-only or status-only replies, no matter how the wake is titled."
+
+if [[ "$PROMPT" == *"'"* ]]; then
+  echo "ERROR: PROMPT contains an apostrophe/single-quote — this breaks the sleeper's echo quoting. Fix arm_qa_loop.sh." >&2
+  exit 3
+fi
 
 while read -r pid; do
   [[ -n "$pid" ]] && kill "$pid" 2>/dev/null || true
@@ -36,8 +44,10 @@ done < <(pgrep -f "sleep ${INTERVAL}.*${SENTINEL}" 2>/dev/null || true)
 cat <<EOF
 QA_LOOP_ARMED slug=${SLUG} interval_sec=${INTERVAL} sentinel=${SENTINEL}
 This process is the sleeper (run arm_qa_loop.sh in a background Shell with
-notify_on_output pattern: ^${SENTINEL}). On wake: EXECUTE full tick — never
-notify-only. Skill: qa-loop.
+notify_on_output pattern: ^${SENTINEL}). On wake: EXECUTE the full checklist
+every time (scope+handoffs+DoD+gate+close+evidence+new tests), drain the
+backlog ticket by ticket until a scan returns count=0 — no notify-only mode
+exists, regardless of how the wake is titled. Skill: qa-loop.
 EOF
 
 cd "$ROOT"

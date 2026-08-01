@@ -119,17 +119,48 @@ if not scope_check_found:
     )
     sys.exit(1)
 
+TERMINAL = {"DONE", "FAIL", "RETURN_DEV", "SKIP_DEV", "QA_CONTINUE"}
+FORBIDDEN = {"PARTIAL", "DEFERRED", "PASS_PENDING", "BLOCKED"}
+errors = []
+
+def has_real_work():
+    """True when any scope key resolved to DONE/FAIL/RETURN_DEV this tick (not just monitor verdicts)."""
+    for key in scope_keys:
+        for ev in reversed([ev for ev in load_events(runs_dir / f"{key}.jsonl") if since_tick(ev)]):
+            if ev.get("event") == "dod_check":
+                if str((ev.get("detail") or {}).get("verdict", "")).upper() in ("DONE", "FAIL", "RETURN_DEV"):
+                    return True
+                break
+    return False
+
+def has_backlog_drained():
+    """Explicit last-step marker: agent re-scanned Jira and confirms no unhandled backlog remains."""
+    return any(ev.get("event") == "backlog_drained" for ev in loop_events if since_tick(ev))
+
+# Backlog-drain check (skip for --keys targeted testing): whenever real ticket work happened this
+# tick (a DONE/FAIL/RETURN_DEV resolution), the agent must log a `backlog_drained` event as the
+# final step — proof that jira_scope.sh was re-run after resolving and the queue was checked again
+# (never stop at one pass while more work may exist).
+if not keys_arg and has_real_work() and not has_backlog_drained():
+    errors.append(
+        "backlog drain: real ticket work happened this tick but no backlog_drained event logged — "
+        "re-run ./scripts/jira_scope.sh <slug> --log --shell as the final step, then log "
+        "'./scripts/factory_log.sh <slug> _loop backlog_drained count=<final scope count>' "
+        "before tick_end (never stop at one ticket/one scan while more work may exist)"
+    )
+
 if scope_count == 0 and not scope_keys:
+    if errors:
+        print("GATE CLOSED — tick_end not allowed:", file=sys.stderr)
+        for e in errors:
+            print(f"  - {e}", file=sys.stderr)
+        sys.exit(1)
     print("GATE OPEN — scope empty (count=0), exploratory allowed")
     sys.exit(0)
 
 if not scope_keys:
     print("GATE CLOSED: scope_check count>0 but keys missing — re-run jira_scope.sh --log", file=sys.stderr)
     sys.exit(1)
-
-TERMINAL = {"DONE", "FAIL", "RETURN_DEV", "SKIP_DEV", "QA_CONTINUE"}
-FORBIDDEN = {"PARTIAL", "DEFERRED", "PASS_PENDING", "BLOCKED"}
-errors = []
 
 def ticket_has_event(key, event_name):
     return any(ev.get("event") == event_name for ev in load_events(runs_dir / f"{key}.jsonl") if since_tick(ev))

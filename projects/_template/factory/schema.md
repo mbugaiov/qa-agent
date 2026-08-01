@@ -23,6 +23,7 @@ Each line is one JSON object (JSONL). All events include:
 | `handoff_read` | Dev handoff consumed before V/T retest | `{ "buildId": "…", "pr": "…", "status": "…" }` |
 | `tc_linked` | Ticket mapped to persisted regression TC | `{ "tc_id": "TC-RQ-1", "path": "test-cases/…", "created": true \| "existing": true }` |
 | `dod_check` | **Per scope ticket before tick_end** | See **DoD gate** below |
+| `backlog_drained` | Final step before `tick_end` when real work happened | `{ "count": N }` — proof `jira_scope.sh` was re-run after resolving and the queue was checked again |
 | `recording_attached` | E2E clip attached to ticket | `{ "caption": "…" }` |
 | `tick_end` | End of tick (after gate passes) | `{ "run", "scope_count", "gate": "open" }` |
 | `verdict` | Retest result (legacy / extra) | `{ "verdict": "PASS\|FAIL\|needs-human", "merge_sha", "buildid" }` |
@@ -99,6 +100,16 @@ must match handoff — stale `In Progress` while Jira is V/T closes the gate (st
 **Same-tick completion (gate enforced):** `transition to=In Progress`, `retest_attempted=true`, or
 `feature_steps_executed=true` this tick ⇒ **`tick_end` requires `DONE`** (or `FAIL` / `RETURN_DEV` with
 full blocker fields). **`SKIP_DEV` after work started is rejected** (partial deferral anti-pattern).
+
+**Backlog drain (gate enforced):** whenever any scope key resolves `DONE`/`FAIL`/`RETURN_DEV` this tick,
+`factory_tick_gate.sh` requires a `backlog_drained` event on `_loop.jsonl` before it opens — proof the
+agent re-ran `jira_scope.sh <slug> --log --shell` **again** after resolving scope, and either found
+nothing left (`count=0`) or confirmed the remainder is legitimately dev-owned `SKIP_DEV`. A tick that
+resolves one ticket and stops without this event is **closed**: "no backlog_drained event logged."
+
+```bash
+./scripts/factory_log.sh <slug> _loop backlog_drained count=0
+```
 
 ### Forbidden verdicts at `tick_end`
 
