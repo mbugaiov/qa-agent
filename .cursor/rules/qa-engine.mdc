@@ -26,13 +26,14 @@ alwaysApply: false
   2. `scope_check` — fresh `jira_scope.sh <slug> --log --shell` (never reuse a stale scan)
   3. `handoff_read` per scope key
   4. Full **DoD** per scope key (OpenSpec read, persisted TC, two-pass retest, buildId gate)
-  5. `factory_tick_gate.sh` — must print `GATE OPEN`
-  6. **Close**: Jira `transition` + closing comment (`jira_close_issue.py` or `jira_return_in_progress.py`) on every terminal ticket
-  7. **Evidence**: E2E recording (`record_and_attach.sh`) + screenshot for filed bugs, unless exempt
-  8. **New tests**: persist/extend the regression TC (`ticket_tc.sh`) and, for every confirmed defect, a regression test referencing its bug id
-  9. `tick_end` + `run.md` update
+  5. **Close**: Jira `transition` + closing comment (`jira_close_issue.py` or `jira_return_in_progress.py`) on every terminal ticket
+  6. **Evidence**: E2E recording (`record_and_attach.sh`) + screenshot for filed bugs, unless exempt
+  7. **New tests**: persist/extend the regression TC (`ticket_tc.sh`) and, for every confirmed defect, a regression test referencing its bug id
+  8. **Drain the backlog** (see below) — before the gate, not after
+  9. `factory_tick_gate.sh` — must print `GATE OPEN`
+  10. `tick_end` + `run.md` update
   **Forbidden, always:** status-only summaries, "no follow-ups needed", "nothing to do" without running `jira_scope.sh`, or deferring any part of the above to the next wake. The user-facing reply is a **brief result after full execution**, never a substitute for it.
-- **Drain the backlog — never stop at one ticket or one scope pass.** A tick is not bounded to "one ticket" or "one scan": after resolving every ticket from a scope scan, **re-run `jira_scope.sh <slug> --log --shell` again** before `tick_end`. If the fresh scan returns more (or different) tickets — including new `impl-qa`/`impl-dev` To Do items freed up by work just completed — **keep going, ticket by ticket, in the same session**. Only stop draining when a scan genuinely returns nothing actionable (count=0, or every remaining item is a legitimate dev-owned `SKIP_DEV`). Do not artificially cap work at one ticket per tick and defer the rest to the next timer wake.
+- **Drain the backlog — never stop at one ticket or one scope pass.** A tick is not bounded to "one ticket" or "one scan": after resolving every ticket from a scope scan, **re-run `jira_scope.sh <slug> --log --shell` again** — before `factory_tick_gate.sh`, not after. If the fresh scan returns more (or different) tickets — including new `impl-qa`/`impl-dev` To Do items freed up by work just completed — **keep going, ticket by ticket, in the same session**, then re-scan again. Only stop draining when a scan genuinely returns nothing actionable (count=0, or every remaining item is a legitimate dev-owned `SKIP_DEV`); then log `backlog_drained` and run the gate. Do not artificially cap work at one ticket per tick and defer the rest to the next timer wake. **Gate enforced:** this requirement is checked against *every* ticket resolved anywhere in the tick (union of keys across every scope_check), not just whatever the final scan's keys happen to be — so it still applies after a correct drain makes resolved tickets drop out of the latest scan.
 - **Teams tick notify (optional):** `jira_scope.sh --log` posts a Teams Adaptive Card (scope + next wake) when `QA_FACTORY_TEAMS_WEBHOOK_URL` is set — use the same Power Automate URL as Hephaestus for the same channel. Unset = quiet. Real delivery failures print `QA_TICK_NOTIFY_FAILED`.
 - **Scope scan — all tickets per tick, repeated until drained:** query Jira for every epic child in `In Progress` / `Validate/Testing` and run full machine DoD on **each** before ending the tick; never tunnel on one ticket while others remain in scope; re-scan after resolving to catch newly-appeared work (skill `qa-loop`).
   - **Same-tick completion:** autotake / feature retest with `retest_attempted=true` ⇒ **Done** or **FAIL** / **RETURN_DEV** same session. **`impl-qa` full charters → marathon mode** (work until Done; no `tick_end`/re-arm; dev scope frozen).

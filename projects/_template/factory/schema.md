@@ -108,9 +108,12 @@ agent re-ran `jira_scope.sh <slug> --log --shell` **again** after resolving scop
 nothing left (`count=0`) or confirmed the remainder is legitimately dev-owned `SKIP_DEV`. A tick that
 resolves one ticket and stops without this event is **closed**: "no backlog_drained event logged."
 Completed tickets that drop off a later empty/SKIP_DEV-only rescan still count as real work.
+Log `backlog_drained` **after** the drain loop settles and **before** running the gate.
 
 ```bash
+# ... resolve scope tickets, re-scan until clean/SKIP_DEV-only ...
 ./scripts/factory_log.sh <slug> _loop backlog_drained count=0
+./scripts/factory_tick_gate.sh <slug>
 ```
 
 ### Forbidden verdicts at `tick_end`

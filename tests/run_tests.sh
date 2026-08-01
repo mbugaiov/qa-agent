@@ -800,6 +800,13 @@ grep "^PROMPT=" scripts/arm_qa_loop.sh | grep -qv "'" \
   || no "arm_qa_loop PROMPT text must not contain apostrophes — breaks sleeper echo quoting"
 grep_ok "must NEVER contain an apostrophe" scripts/arm_qa_loop.sh "arm_qa_loop documents the apostrophe-quoting hazard"
 grep_ok "PROMPT contains an apostrophe" scripts/arm_qa_loop.sh "arm_qa_loop has a runtime guard against apostrophes in PROMPT"
+# Regression: ts must be millisecond-precision (not just seconds), or fast back-to-back events
+# (routine in scripted ticks / this very test suite) can tie/invert, corrupting since_tick ordering.
+./scripts/factory_log.sh "$SLUG" _loop ts_precision_check_a >/dev/null
+TS1=$(tail -n1 "projects/$SLUG/factory/runs/_loop.jsonl" | python3 -c "import json,sys; print(json.load(sys.stdin)['ts'])")
+echo "$TS1" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$' \
+  && ok "factory_log.sh writes millisecond-precision ts" \
+  || no "factory_log.sh ts must be millisecond-precision (got: $TS1)"
 grep_ok "backlog_drained" projects/_template/factory/schema.md "schema documents backlog_drained event"
 grep_ok "Backlog drain" projects/_template/factory/schema.md "schema explains backlog drain gate"
 # The one narrow, deliberate mention of the notification's wording exists only to say it's irrelevant.

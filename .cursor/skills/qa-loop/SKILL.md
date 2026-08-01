@@ -95,7 +95,7 @@ Whatever the trigger says, the response is always the same: run the full tick be
 
 | Mode | Allowed? | Behavior |
 |------|----------|----------|
-| **Execution (full checklist)** | **The only mode — always** | `tick_start` → `scope_check` → per-key `handoff_read` + DoD → `factory_tick_gate.sh` → **close** (transition + `jira_close_issue.py`/`jira_return_in_progress.py` comment) → **evidence** (recording/screenshot) → **new/updated regression tests** → exploratory → `tick_end` |
+| **Execution (full checklist)** | **The only mode — always** | `tick_start` → `scope_check` → per-key `handoff_read` + DoD → **close** (transition + `jira_close_issue.py`/`jira_return_in_progress.py` comment) → **evidence** (recording/screenshot) → **new/updated regression tests** → **drain the backlog** (re-scan, repeat until clean, log `backlog_drained`) → `factory_tick_gate.sh` → exploratory → `tick_end` |
 | **Notify-only / status-only / "nothing to do"** | **Does not exist — forbidden** | Never respond to a wake with a summary, ledger trivia, or aborted-task cleanup instead of running the checklist above |
 
 **On every wake, unconditionally (before replying to the user):**
@@ -104,27 +104,29 @@ Whatever the trigger says, the response is always the same: run the full tick be
 2. `factory_log.sh … _loop tick_start …`
 3. `eval "$(./scripts/jira_scope.sh <slug> --log --shell)"` — **never assume scope empty; never reuse a stale scan from a prior tick**.
 4. For every key in scope: `handoff_read` → OpenSpec read → persisted/extended TC (`ticket_tc.sh`) → two-pass DoD → buildId gate → recording/evidence → **close** (`transition` + `jira_close_issue.py`/`jira_return_in_progress.py` comment) → regression test added/confirmed for any defect found.
-5. `factory_tick_gate.sh` must print `GATE OPEN`.
-6. **Drain the backlog** (see below) — do not stop after one pass if more actionable work exists.
-7. Exploratory slice once scope is drained; then `tick_end` + `run.md` update.
+5. **Drain the backlog** (see below) — re-scan and keep resolving until nothing actionable remains, then log `backlog_drained`. Do this **before** the gate check, not after.
+6. `factory_tick_gate.sh` must print `GATE OPEN`.
+7. Exploratory slice; then `tick_end` + `run.md` update.
 8. Reply with a **short post-execution summary** (tick #, scope outcome, STG build, next wake) — this is a report **after** the work happened, never in place of it.
 
 ### Drain the backlog — no one-ticket-per-tick cap (gate enforced)
 
 A tick is **not** "handle the first scope ticket you see and stop." After resolving every ticket
-from a scan:
+from a scan, **before running the gate**:
 
 1. **Re-run** `eval "$(./scripts/jira_scope.sh <slug> --log --shell)"` again.
 2. If it returns **any** ticket not yet resolved this tick — new V/T handoff, a ticket that moved
    status as a side effect of work just done, or an `impl-qa`/`impl-dev` To Do item now unblocked —
-   **keep working it in the same session**, ticket by ticket, applying the full per-ticket checklist to each.
-3. Repeat step 1–2 until a scan returns **count=0**, or every remaining item is a legitimate
+   **keep working it in the same session**, ticket by ticket, applying the full per-ticket checklist to each, then repeat step 1.
+3. Repeat 1–2 until a scan returns **count=0**, or every remaining item is a legitimate
    dev-owned `SKIP_DEV` (dev still coding, no QA action possible).
-4. **Log the final confirmation**: `./scripts/factory_log.sh <slug> _loop backlog_drained count=<final scope count>`
-   — this is the literal last step before `tick_end`. **Gate enforced:** whenever any scope ticket
-   resolved to `DONE`/`FAIL`/`RETURN_DEV` this tick, `factory_tick_gate.sh` requires a `backlog_drained`
-   event on the ledger, or it closes the gate with "no backlog_drained event logged."
-5. Only then move to exploratory and `tick_end`.
+4. **Log the confirmation**: `./scripts/factory_log.sh <slug> _loop backlog_drained count=<final scope count>`
+   — this happens **after** the drain loop settles and **before** `factory_tick_gate.sh`. **Gate enforced:**
+   whenever *any* ticket resolved to `DONE`/`FAIL`/`RETURN_DEV` **anywhere in this tick** (union of keys
+   across every `scope_check` this tick, not just the final scan), `factory_tick_gate.sh` requires a
+   `backlog_drained` event on the ledger, or it closes the gate with "no backlog_drained event logged" —
+   this still applies even after a correct re-scan makes those resolved tickets drop out of the latest scan.
+5. Only then run `factory_tick_gate.sh`, then move to exploratory and `tick_end`.
 
 **Anti-pattern:** answering the wake notification with ledger trivia or aborted-task cleanup
 **without** running the tick — caused multi-hour gaps when chat was idle but sleepers kept firing.
