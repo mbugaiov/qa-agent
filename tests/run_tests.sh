@@ -289,10 +289,17 @@ assert body["type"] == "message"
 title_block = body["attachments"][0]["content"]["body"][0]
 assert "Argus" in title_block["text"], title_block
 assert title_block["color"] == "Warning", title_block
-facts = body["attachments"][0]["content"]["body"][1]["facts"]
+blocks = body["attachments"][0]["content"]["body"]
+facts = blocks[1]["facts"]
 titles = {f["title"] for f in facts}
-assert "Agent" in titles and "Queue" in titles and "Next tick (UTC)" in titles, titles
+assert "Agent" in titles and "Next tick (UTC)" in titles and "Queue" not in titles, titles
 assert any(f["title"] == "Agent" and "Argus" in f["value"] for f in facts)
+texts = [b.get("text") for b in blocks if b.get("type") == "TextBlock"]
+assert "Queue" in texts
+queue_body = next(t for t in texts if t and "TST-2" in t)
+assert "• TST-2" in queue_body
+assert " · " not in queue_body
+assert "TST-1" not in queue_body
 
 assert mod.check_webhook_url(None)["problem"] == "not_configured"
 assert mod.check_webhook_url("")["problem"] == "not_configured"
