@@ -14,6 +14,7 @@ from github_tracker import (  # noqa: E402
     extract_hints,
     is_dev_handoff_comment,
     load_project_yaml,
+    resolve_github_repo,
     tracker_provider,
 )
 
@@ -49,6 +50,27 @@ STG buildId: abcdef1234567890 (main abcdef1234567890)
                     "git:\n  provider: github\n  workspace: example-corp\n  repo: my-app\n"
                 )
             self.assertEqual(tracker_provider(d), "github_issues")
+
+    def test_ambient_github_env_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
+                fh.write("slug: myapp\njira:\n  enabled: false\n")
+            prev_o = os.environ.get("GITHUB_OWNER")
+            prev_r = os.environ.get("GITHUB_REPO")
+            try:
+                os.environ["GITHUB_OWNER"] = "evil-corp"
+                os.environ["GITHUB_REPO"] = "evil-repo"
+                self.assertIsNone(resolve_github_repo(d))
+                self.assertEqual(tracker_provider(d), "jira")
+            finally:
+                if prev_o is None:
+                    os.environ.pop("GITHUB_OWNER", None)
+                else:
+                    os.environ["GITHUB_OWNER"] = prev_o
+                if prev_r is None:
+                    os.environ.pop("GITHUB_REPO", None)
+                else:
+                    os.environ["GITHUB_REPO"] = prev_r
 
     def test_commented_tracker_not_active(self) -> None:
         with tempfile.TemporaryDirectory() as d:

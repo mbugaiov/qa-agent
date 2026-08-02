@@ -77,7 +77,7 @@ Per ticket: `./scripts/qa_handoff.sh <slug> <key> --log` → STG retest →
 
 1. `tick_start` + scope step above (scope_check logged by `--log`)
 2. **If `count > 0` (or `SCOPE_COUNT > 0`):** for **each** scope ticket **before browser work**:
-   - `./scripts/jira_handoff.sh <slug> <KEY> --log` → factory `handoff_read`
+   - `./scripts/qa_handoff.sh <slug> <KEY> --log` → factory `handoff_read`
    - **`./scripts/openspec_read.sh <slug> --ticket <KEY>`** (skill `qa-openspec`) — read governing REQ/scenarios; validate test design
    - **`./scripts/ticket_tc.sh <slug> <KEY> --title "…" [--steps-file …] [--scenario SC-*] [--req REQ-*] --log`** — persist regression TC in `test-cases/` (idempotent); updates `project-memory.md` regression index
    - Derive 3–5 test steps from **OpenSpec + handoff** → note in `run.md` per-ticket checklist (must match persisted TC)
@@ -109,8 +109,8 @@ Whatever the trigger says, the response is always the same: run the full tick be
 
 1. Read `project-memory.md` → active run + cadence.
 2. `factory_log.sh … _loop tick_start …`
-3. `eval "$(./scripts/jira_scope.sh <slug> --log --shell)"` — **never assume scope empty; never reuse a stale scan from a prior tick**.
-4. For every key in scope: `handoff_read` → OpenSpec read → persisted/extended TC (`ticket_tc.sh`) → two-pass DoD → buildId gate → recording/evidence → **close** (`transition` + `jira_close_issue.py`/`jira_return_in_progress.py` comment) → regression test added/confirmed for any defect found.
+3. `eval "$(./scripts/qa_scope.sh <slug> --log --shell)"` — **never assume scope empty; never reuse a stale scan from a prior tick**.
+4. For every key in scope: `handoff_read` (`qa_handoff.sh`) → OpenSpec read → persisted/extended TC (`ticket_tc.sh`) → two-pass DoD → buildId gate → recording/evidence → **close** (Jira close/return scripts, or `github_close_issue.py` / `github_return_to_dev.py`) → regression test added/confirmed for any defect found.
 5. **Drain the backlog** (see below) — re-scan and keep resolving until nothing actionable remains, then log `backlog_drained`. Do this **before** the gate check, not after.
 6. `factory_tick_gate.sh` must print `GATE OPEN`.
 7. Exploratory slice; then `tick_end` + `run.md` update.
@@ -121,7 +121,7 @@ Whatever the trigger says, the response is always the same: run the full tick be
 A tick is **not** "handle the first scope ticket you see and stop." After resolving every ticket
 from a scan, **before running the gate**:
 
-1. **Re-run** `eval "$(./scripts/jira_scope.sh <slug> --log --shell)"` again.
+1. **Re-run** `eval "$(./scripts/qa_scope.sh <slug> --log --shell)"` again.
 2. If it returns **any** ticket not yet resolved this tick — new V/T handoff, a ticket that moved
    status as a side effect of work just done, or an `impl-qa`/`impl-dev` To Do item now unblocked —
    **keep working it in the same session**, ticket by ticket, applying the full per-ticket checklist to each, then repeat step 1.
@@ -268,10 +268,10 @@ on a prior tick **or** explicit user monitor mode. Open V/T without recordings �
 
 ```bash
 ./scripts/factory_log.sh <slug> _loop tick_start run=<run-id>
-eval "$(./scripts/jira_scope.sh <slug> --log --shell)"
+eval "$(./scripts/qa_scope.sh <slug> --log --shell)"
 # scope_check logged; count / SCOPE_COUNT available for branching
-./scripts/jira_handoff.sh <slug> ABC-1 --log
-./scripts/jira_handoff.sh <slug> ABC-2 --log
+./scripts/qa_handoff.sh <slug> ABC-1 --log
+./scripts/qa_handoff.sh <slug> ABC-2 --log
 ./scripts/factory_log.sh <slug> ABC-1 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true retest_attempted=true
 ./scripts/factory_log.sh <slug> ABC-1 transition to=Done
 python3 scripts/jira_return_in_progress.py --project projects/<slug> --key ABC-2 \

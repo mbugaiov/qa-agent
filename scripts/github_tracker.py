@@ -74,19 +74,18 @@ def resolve_github_repo(project_dir: str) -> tuple[str, str] | None:
     cfg = load_project_yaml(project_dir)
     git = cfg.get("git") or {}
     tracker = cfg.get("tracker") or {}
-    owner = (
-        (tracker.get("owner") if isinstance(tracker, dict) else None)
-        or (git.get("workspace") if isinstance(git, dict) else None)
-        or os.environ.get("GITHUB_OWNER", "")
+    # Per-project only: project.yaml + .secrets/github.env — never ambient env.
+    owner = (tracker.get("owner") if isinstance(tracker, dict) else None) or (
+        git.get("workspace") if isinstance(git, dict) else None
     )
-    repo = (
-        (tracker.get("repo") if isinstance(tracker, dict) else None)
-        or (git.get("repo") if isinstance(git, dict) else None)
-        or os.environ.get("GITHUB_REPO", "")
+    repo = (tracker.get("repo") if isinstance(tracker, dict) else None) or (
+        git.get("repo") if isinstance(git, dict) else None
     )
     env = load_env_file(os.path.join(project_dir, ".secrets", "github.env"))
-    owner = env.get("GITHUB_OWNER", owner) or owner
-    repo = env.get("GITHUB_REPO", repo) or repo
+    if env.get("GITHUB_OWNER"):
+        owner = env["GITHUB_OWNER"]
+    if env.get("GITHUB_REPO"):
+        repo = env["GITHUB_REPO"]
     if not owner or not repo:
         return None
     return str(owner), str(repo)
