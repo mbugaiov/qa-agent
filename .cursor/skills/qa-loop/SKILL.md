@@ -82,7 +82,9 @@ Per ticket: `./scripts/qa_handoff.sh <slug> <key> --log` → STG retest →
    - **`./scripts/ticket_tc.sh <slug> <KEY> --title "…" [--steps-file …] [--scenario SC-*] [--req REQ-*] --log`** — persist regression TC in `test-cases/` (idempotent); updates `project-memory.md` regression index
    - Derive 3–5 test steps from **OpenSpec + handoff** → note in `run.md` per-ticket checklist (must match persisted TC)
    - `./scripts/stg_buildid.sh <slug> <handoff-sha>` when handoff cites buildId
-3. For **each** scope ticket — execute checklist → log `dod_check` with terminal verdict
+3. For **each** scope ticket — execute checklist → **skill `qa-verdict-review`** (artifact +
+   `check_verdict_review.sh`) for Done/FAIL/RETURN candidates → log `dod_check` with terminal
+   verdict **and** `verdict_review=pass` (or prior `verdict_review` event)
 4. `./scripts/factory_tick_gate.sh <slug>` — must print `GATE OPEN`
 5. **Only if scope empty OR all scope tickets have terminal `dod_check`:** exploratory slice
 6. `tick_end` + update `run.md`

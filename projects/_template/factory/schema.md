@@ -23,6 +23,7 @@ Each line is one JSON object (JSONL). All events include:
 | `handoff_read` | Dev handoff consumed before V/T retest | `{ "buildId": "…", "pr": "…", "status": "…" }` |
 | `tc_linked` | Ticket mapped to persisted regression TC | `{ "tc_id": "TC-RQ-1", "path": "test-cases/…", "created": true \| "existing": true }` |
 | `dod_check` | **Per scope ticket before tick_end** | See **DoD gate** below |
+| `verdict_review` | Before Done/FAIL/RETURN (skill `qa-verdict-review`) | `{ "result": "pass", "artifact": "runs/…/verdict-review-<KEY>.md" }` |
 | `backlog_drained` | Final step before `tick_end` when real work happened | `{ "count": N }` — proof `jira_scope.sh` was re-run after resolving and the queue was checked again |
 | `recording_attached` | E2E clip attached to ticket | `{ "caption": "…" }` |
 | `tick_end` | End of tick (after gate passes) | `{ "run", "scope_count", "gate": "open" }` |
@@ -75,6 +76,7 @@ Exit **0** = gate open → safe to log `tick_end`. Exit **1** = gate closed → 
 | `charter_artifact` | `QA_CONTINUE` | Run-folder path updated (execution-log, security-checklist, exploratory-session, …) |
 | `qa_work_done` | `QA_CONTINUE` | `true` — proves charter slice executed (not monitor-only) |
 | `openspec_read` | `QA_CONTINUE`, `FAIL`, `RETURN_DEV`, **`DONE`** | `true` — after `openspec_read.sh`; expected behaviour from OpenSpec THEN |
+| `verdict_review` | `DONE`, `FAIL`, `RETURN_DEV` | `pass` / `true` — after skill `qa-verdict-review` + `check_verdict_review.sh` (or separate `verdict_review` event with `result=pass`) |
 | `dev_handoff` | `FAIL`, `RETURN_DEV` | path to `retest-fail-<KEY>.md` posted to Jira |
 | `recording_exempt` | pure-CI tickets | `true` |
 | `retest_attempted` | `FAIL`, `RETURN_DEV`, `DONE` | `true` — feature-specific steps were run (smoke alone insufficient) |
