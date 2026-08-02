@@ -76,15 +76,16 @@ def load_project_yaml(project_dir: str) -> dict[str, Any]:
 
 
 def tracker_provider(project_dir: str) -> str:
+    """Return tracker backend. Only explicit tracker.provider opts into github_issues.
+
+    git.provider / jira.enabled alone must NOT select Issues — template defaults
+    leave jira disabled, and many projects set git.provider: github for the
+    app repo without wanting the GitHub Issues QA factory.
+    """
     cfg = load_project_yaml(project_dir)
     t = cfg.get("tracker") or {}
     if isinstance(t, dict) and t.get("provider"):
         return str(t["provider"])
-    jira = cfg.get("jira") or {}
-    if isinstance(jira, dict) and jira.get("enabled") is False:
-        git = cfg.get("git") or {}
-        if isinstance(git, dict) and git.get("provider") == "github":
-            return "github_issues"
     return "jira"
 
 

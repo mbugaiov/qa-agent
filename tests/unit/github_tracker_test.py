@@ -52,6 +52,17 @@ STG buildId: abcdef1234567890 (main abcdef1234567890)
                 )
             self.assertEqual(tracker_provider(d), "github_issues")
 
+    def test_git_github_jira_disabled_no_tracker_stays_jira(self) -> None:
+        """git.provider=github + jira disabled must not imply github_issues."""
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
+                fh.write(
+                    "slug: myapp\n"
+                    "jira:\n  enabled: false\n"
+                    "git:\n  provider: github\n  workspace: example-corp\n  repo: my-app\n"
+                )
+            self.assertEqual(tracker_provider(d), "jira")
+
     def test_ambient_github_env_ignored(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:

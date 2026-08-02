@@ -813,6 +813,23 @@ echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get(
 # Route dispatcher: default template → jira (commented tracker: block does not activate)
 PROV=$(python3 -c "import sys; sys.path.insert(0,'scripts'); from github_tracker import tracker_provider; print(tracker_provider('projects/$SLUG'))")
 [[ "$PROV" == "jira" ]] && ok "qa_scope routes template → jira" || no "template tracker should be jira"
+# git.provider=github + jira disabled alone must NOT opt into github_issues
+GIT_ONLY="${SLUG}-git-only"
+rm -rf "projects/$GIT_ONLY"
+mkdir -p "projects/$GIT_ONLY"
+cat > "projects/$GIT_ONLY/project.yaml" <<EOF
+slug: $GIT_ONLY
+jira:
+  enabled: false
+git:
+  provider: github
+  workspace: example-corp
+  repo: my-app
+EOF
+PROV=$(python3 -c "import sys; sys.path.insert(0,'scripts'); from github_tracker import tracker_provider; print(tracker_provider('projects/$GIT_ONLY'))")
+[[ "$PROV" == "jira" ]] && ok "git=github + jira off + no tracker → jira" \
+  || no "must not infer github_issues from git.provider alone (got: $PROV)"
+rm -rf "projects/$GIT_ONLY"
 # Write a live github_issues project (scratch dir) — no owner/repo → still inactive but routes GitHub
 GH_SLUG="${SLUG}-gh"
 rm -rf "projects/$GH_SLUG"
