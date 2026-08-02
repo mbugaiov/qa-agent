@@ -48,7 +48,7 @@ Complete **`HOST_SETUP.md`** (global QA skills + browser MCP + `gh`) before runn
 
 **Cursor settings to check:**
 
-1. **Browser MCP** — enable one live-browser MCP (never headless for manual QA):
+1. **Browser** — Playwright CLI for most work; optional browser MCP (**headless by default**, see `docs/BROWSER.md`):
    - `cursor-ide-browser` (built-in), or
    - `user-playwright` (external)
    Record the choice in `project-memory.md` → `## App profile` → **Browser MCP**.

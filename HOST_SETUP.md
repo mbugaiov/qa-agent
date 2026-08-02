@@ -9,7 +9,7 @@ Some capabilities depend on **host-installed** tools and skills on each develope
 |---|---|---|
 | Python 3 | Scripts (Jira, DOCX, coverage) | System Python or `pyenv` |
 | `python-docx`, `requests` | Report generation, Jira API | `pip install python-docx requests` |
-| Browser MCP | Live visible manual QA | Enable in Cursor (e.g. `cursor-ide-browser` or `user-playwright`) |
+| Browser MCP | Live-app QA (headless default) | Enable in Cursor (e.g. `user-playwright`); see `docs/BROWSER.md` |
 
 Document the chosen browser MCP in each project's `project-memory.md`.
 

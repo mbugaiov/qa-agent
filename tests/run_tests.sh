@@ -193,6 +193,11 @@ echo "$OUT" | grep -q '^MISMATCH_BEHIND ' && [[ $EC -eq 2 ]] && ok "stg_buildid 
 # rule + skills carry the L5 auto policy
 grep_ok "L5 unattended" ".cursor/rules/qa-engine.mdc" "qa-engine has L5 unattended policy"
 grep_ok "STG buildId gate" ".cursor/rules/qa-engine.mdc" "qa-engine has STG buildId gate"
+have docs/BROWSER.md
+grep_ok "Default: headless" docs/BROWSER.md "BROWSER.md headless default"
+grep_ok "headless by default" .cursor/rules/qa-engine.mdc "qa-engine headless default"
+grep_ok "Headless by default" .cursor/rules/qa-team.mdc "qa-team headless default"
+grep -qi "never headless" AGENTS.md && no "AGENTS.md must not require never-headless" || ok "AGENTS.md allows headless"
 grep_ok "Machine DoD for auto-Done" ".cursor/skills/qa-jira/SKILL.md" "qa-jira has machine DoD"
 grep_ok "auto-Done" ".cursor/skills/qa-loop/SKILL.md" "qa-loop has auto-Done path"
 grep_ok "qa-security" ".cursor/skills/qa-loop/SKILL.md" "qa-loop references qa-security"

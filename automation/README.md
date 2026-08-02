@@ -58,8 +58,8 @@ data extraction, debugging a flow), use the Playwright CLI skill from
 # Prerequisite: npx must be available (Node.js/npm)
 command -v npx >/dev/null 2>&1 || echo "install Node.js/npm first"
 
-# Drive a real browser from the terminal
-npx --package @playwright/cli playwright-cli open https://staging.example.com --headed
+# Drive a browser from the terminal (headless by default — docs/BROWSER.md)
+npx --package @playwright/cli playwright-cli open https://staging.example.com
 npx --package @playwright/cli playwright-cli snapshot       # get stable element refs (e1, e2, …)
 npx --package @playwright/cli playwright-cli fill e1 "user@example.com"
 npx --package @playwright/cli playwright-cli fill e2 "password123"
@@ -71,7 +71,5 @@ Core loop: **open → snapshot → interact by ref → re-snapshot after navigat
 Re-snapshot whenever a ref goes stale. Put artifacts in `../runs/<date>/screenshots/`.
 
 > Source: `openai/skills` `.curated/playwright` and `.curated/playwright-interactive`.
-> Note: this is **CLI automation**, complementary to — not a replacement for —
-> the live `cursor-ide-browser` MCP used for the *manual* two-pass execution in
-> `AGENTS.md`. Use the MCP for human-visible manual testing; use the CLI here for
-> fast scripted automation once cases are verified.
+> Prefer CLI/specs for regression; MCP two-pass only when no spec exists — both **headless**
+> unless `docs/BROWSER.md` headed exception applies.

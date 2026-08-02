@@ -185,7 +185,7 @@ Install separately (not vendored in the engine):
 | `~/.cursor/skills/qa-site-analysis` | Phase 3 site mapping |
 | `~/.cursor/skills/qa-test-execution` | Phase 5 two-pass execution |
 | `~/.cursor/skills/qa-report-generation` | Phase 7 report |
-| Browser MCP (`cursor-ide-browser` or `user-playwright`) | Live visible browser — document choice in `project-memory.md` |
+| Browser MCP (`user-playwright` etc.) | Live app QA, **headless by default** — document choice in `project-memory.md` (`docs/BROWSER.md`) |
 | `python-docx`, `requests`, `ffmpeg`, Playwright | Reports, Jira, recordings, automation |
 
 The engine works without Jira (Jira-free no-op) and without server autostart (`server.manage: false`).

@@ -7,7 +7,7 @@
 - **URL(s)**: <staging / prod / local QA port>
 - **Stack hints**: <framework, auth mechanism, notable libraries>
 - **Roles / personas**: <guest / user / admin and what each can do>
-- **Browser MCP**: <which MCP this project uses — e.g. cursor-ide-browser, user-playwright>
+- **Browser**: headless default (`docs/BROWSER.md`); MCP if used: <e.g. user-playwright>
 
 ## Quirks & gotchas (learned)
 - <e.g. login form does not fire validation until blur — use real typing in Pass 1>

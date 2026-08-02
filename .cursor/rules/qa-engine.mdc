@@ -6,7 +6,8 @@ alwaysApply: false
 
 # QA Agent — hard rules (always apply)
 
-- **Prefer the Playwright CLI/specs for everything possible; the Playwright MCP is the LAST RESORT.** Use the MCP only when a live, visible browser is genuinely required — exploratory / the mandatory two-pass manual QA on an unknown page — and no CLI/spec path works. All repeatable regression/acceptance → `playwright test … --reporter=dot` (headless, far cheaper, and covers what the MCP can't, e.g. dnd). Never drive repeatable checks action-by-action through the MCP; if you repeat MCP steps, convert them to a spec. See skill `token-efficient-ops`.
+- **Browser = headless by default** — see `docs/BROWSER.md`. Do not open a visible window for routine retest/exploratory/recording. Headed only when human asks or FAIL is ambiguous after headless evidence (`BROWSER_HEADED: <reason>` in `run.md`).
+- **Prefer the Playwright CLI/specs for everything possible; the Playwright MCP is the LAST RESORT.** Use the MCP only when no CLI/spec path works (exploratory / two-pass on an unknown page). All repeatable regression/acceptance → `playwright test … --reporter=dot` (headless). MCP sessions stay **headless** unless headed is explicitly justified. Never drive repeatable checks action-by-action through the MCP; if you repeat MCP steps, convert them to a spec. See skill `token-efficient-ops`.
 - Two-pass execution on every case (real input + automation); trust Pass 1 on disagreement.
 - Spec-driven chain holds: **REQ → SC → TC → evidence** (run `check_coverage.py`; traceability matrix has no empty cells without a reason).
 - A bug is CONFIRMED only with evidence (screenshot of the error state, or a captured 5xx) — never from body-text matching "500".

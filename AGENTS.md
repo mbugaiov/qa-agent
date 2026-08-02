@@ -28,6 +28,7 @@
 | Security checklist categories (reference) | `templates/security-checklist.md` |
 | Always-on hard constraints | rules `.cursor/rules/qa-engine.mdc` + `token-efficiency.mdc` + `usage-accounting.mdc` + `qa-team.mdc` |
 | What external methodology was integrated and from where | `INTEGRATIONS.md` |
+| Headless vs headed browser policy | `docs/BROWSER.md` |
 | Engine vs projects repo split, onboarding any new site | `PORTABILITY.md` |
 | Host machine setup (global skills, Python, MCP) | `HOST_SETUP.md` |
 | Project setup (Jira, creds, epic, server, start) | `SETUP.md` |
@@ -69,7 +70,7 @@ For **security**, follow skill `qa-security` on **`exploratory`** and **`regress
 
 ## Hard rules
 
-- Live, visible browser only — never headless.
+- **Headless browser by default** (`docs/BROWSER.md`) — headed only when justified.
 - Two-pass execution on every case.
 - Spec-driven chain holds: **REQ → SC → TC → evidence** (run `check_coverage.py`; traceability matrix has no empty cells without a reason).
 - A bug is CONFIRMED only with evidence (screenshot of error state, or captured 5xx) — never from body-text matching "500".
