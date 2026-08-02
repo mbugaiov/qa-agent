@@ -32,21 +32,26 @@ def load_project_yaml(project_dir: str) -> dict[str, Any]:
             data = yaml.safe_load(fh) or {}
         return data if isinstance(data, dict) else {}
     except Exception:
-        # Minimal fallback: regex for tracker/git keys
+        # Minimal fallback: uncommented tracker/git keys only (ignore # comments).
         text = open(path, encoding="utf-8").read()
         out: dict[str, Any] = {}
-        m = re.search(r"tracker:\s*\n(?:[ \t]+.+\n)*?", text)
-        prov = re.search(r"provider:\s*(\S+)", text)
-        if prov:
+        active = "\n".join(
+            ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")
+        )
+        prov = re.search(r"(?m)^[ \t]*provider:\s*(\S+)", active)
+        if prov and re.search(r"(?m)^[ \t]*tracker:\s*$", active):
             out.setdefault("tracker", {})["provider"] = prov.group(1).strip('"')
-        owner = re.search(r"workspace:\s*(\S+)", text)
-        repo = re.search(r"^\s*repo:\s*(\S+)", text, re.M)
-        if owner or repo:
+        owner = re.search(r"(?m)^[ \t]*workspace:\s*(\S+)", active)
+        repo = re.search(r"(?m)^[ \t]*repo:\s*(\S+)", active)
+        git_prov = re.search(r"(?m)^[ \t]*provider:\s*(github|bitbucket)\b", active)
+        if owner or repo or git_prov:
             git: dict[str, str] = {}
             if owner:
                 git["workspace"] = owner.group(1).strip('"')
             if repo:
                 git["repo"] = repo.group(1).strip('"')
+            if git_prov:
+                git["provider"] = git_prov.group(1)
             out["git"] = git
         return out
 
