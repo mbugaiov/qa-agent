@@ -783,6 +783,54 @@ if "## Cursor automated review" in body:
 assert "Blocking issues" in body and "None" in body
 PY
 
+echo "== 18b. GitHub Issues tracker (offline) =="
+have scripts/github_tracker.py
+have scripts/github_scope.py
+have scripts/github_scope.sh
+have scripts/github_handoff.py
+have scripts/github_handoff.sh
+have scripts/github_close_issue.py
+have scripts/github_return_to_dev.py
+have scripts/qa_scope.sh
+have scripts/qa_handoff.sh
+python3 tests/unit/github_tracker_test.py -q 2>/dev/null \
+  && ok "github_tracker unit tests" \
+  || no "github_tracker unit tests"
+# Template project has no live git/tracker → github_scope must no-op (inactive), not crash.
+OUT=$(python3 scripts/github_scope.py --project "projects/$SLUG" --json 2>/dev/null)
+echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('inactive') is True and d.get('count')==0" \
+  && ok "github_scope inactive without repo config" \
+  || no "github_scope must exit inactive when unconfigured (got: $OUT)"
+# Route dispatcher: default template → jira (commented tracker: block does not activate)
+PROV=$(python3 -c "import sys; sys.path.insert(0,'scripts'); from github_tracker import tracker_provider; print(tracker_provider('projects/$SLUG'))")
+[[ "$PROV" == "jira" ]] && ok "qa_scope routes template → jira" || no "template tracker should be jira"
+# Write a live github_issues project (scratch dir) — no owner/repo → still inactive but routes GitHub
+GH_SLUG="${SLUG}-gh"
+rm -rf "projects/$GH_SLUG"
+cp -R "projects/$SLUG" "projects/$GH_SLUG"
+python3 - <<PY
+from pathlib import Path
+p = Path("projects/${GH_SLUG}/project.yaml")
+# Strip commented tracker example; append active block without owner/repo (inactive path).
+lines = [ln for ln in p.read_text().splitlines() if not ln.strip().startswith("# tracker") and "provider: github_issues" not in ln]
+p.write_text(
+    "\n".join(lines)
+    + "\n\ntracker:\n  provider: github_issues\n  validate_label: validate-testing\n"
+)
+PY
+PROV=$(python3 -c "import sys; sys.path.insert(0,'scripts'); from github_tracker import tracker_provider; print(tracker_provider('projects/$GH_SLUG'))")
+[[ "$PROV" == "github_issues" ]] && ok "tracker_provider reads github_issues" || no "tracker_provider github_issues"
+OUT=$(bash scripts/qa_scope.sh "$GH_SLUG" --json 2>/dev/null)
+echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('inactive') is True and d.get('count')==0" \
+  && ok "qa_scope.sh github path offline-safe" \
+  || no "qa_scope.sh github must be offline-safe (got: $OUT)"
+DRY=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --comment "pass" --dry-run 2>&1)
+echo "$DRY" | grep -qi "dry-run" && ok "github_close_issue dry-run" || no "github_close_issue dry-run"
+DRY=$(python3 scripts/github_return_to_dev.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --reason "x" --steps-tried "- y" --dry-run 2>&1)
+echo "$DRY" | grep -q "QA RETURN" && ok "github_return_to_dev dry-run" || no "github_return_to_dev dry-run"
+grep_ok "qa_scope.sh" .cursor/skills/qa-loop/SKILL.md "qa-loop skill references qa_scope.sh"
+rm -rf "projects/$GH_SLUG"
+
 echo "== 19. Execution-only wake + backlog drain policy =="
 grep_ok "no notify-only" .cursor/rules/qa-engine.mdc "qa-engine rule states no notify-only path exists"
 grep_ok "wording of the triggering notification is irrelevant" .cursor/rules/qa-engine.mdc "qa-engine rule ignores wake title/wording"

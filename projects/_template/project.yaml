@@ -43,6 +43,19 @@ report:
   app_name: "<App>"
   formats: [md, docx]
 
+# Optional — use GitHub Issues instead of Jira for Dev↔QA factory (see scripts/qa_scope.sh).
+# tracker:
+#   provider: github_issues
+#   validate_label: validate-testing
+#   pickup_label: impl-dev
+#   done_label: done
+#   owner: example-corp
+#   repo: my-app
+# git:
+#   provider: github
+#   workspace: example-corp
+#   repo: my-app
+
 # Jira bug filing (per-project — each company has its own site + account).
 # Connection + credentials live in .secrets/jira.env (gitignored); never here.
 jira:
