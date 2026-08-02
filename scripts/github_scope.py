@@ -76,6 +76,8 @@ def main() -> int:
     repo_ref = f"{owner}/{repo}"
 
     try:
+        # Prefer --label so the limit applies to in-scope issues; still
+        # filter client-side (gh label+state quirks / newly labeled gaps).
         raw = subprocess.check_output(
             [
                 "gh",
@@ -85,6 +87,8 @@ def main() -> int:
                 repo_ref,
                 "--state",
                 "open",
+                "--label",
+                label,
                 "--json",
                 "number,title,state,labels",
                 "--limit",

@@ -35,23 +35,40 @@ def load_project_yaml(project_dir: str) -> dict[str, Any]:
         # Minimal fallback: uncommented tracker/git keys only (ignore # comments).
         text = open(path, encoding="utf-8").read()
         out: dict[str, Any] = {}
-        active = "\n".join(
+        active_lines = [
             ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")
-        )
-        prov = re.search(r"(?m)^[ \t]*provider:\s*(\S+)", active)
-        if prov and re.search(r"(?m)^[ \t]*tracker:\s*$", active):
-            out.setdefault("tracker", {})["provider"] = prov.group(1).strip('"')
-        owner = re.search(r"(?m)^[ \t]*workspace:\s*(\S+)", active)
-        repo = re.search(r"(?m)^[ \t]*repo:\s*(\S+)", active)
-        git_prov = re.search(r"(?m)^[ \t]*provider:\s*(github|bitbucket)\b", active)
-        if owner or repo or git_prov:
-            git: dict[str, str] = {}
-            if owner:
-                git["workspace"] = owner.group(1).strip('"')
-            if repo:
-                git["repo"] = repo.group(1).strip('"')
-            if git_prov:
-                git["provider"] = git_prov.group(1)
+        ]
+        # Parse tracker.provider only inside an uncommented tracker: block.
+        in_tracker = False
+        tracker: dict[str, str] = {}
+        git: dict[str, str] = {}
+        in_git = False
+        for ln in active_lines:
+            if re.match(r"^[ \t]*tracker:\s*$", ln):
+                in_tracker, in_git = True, False
+                continue
+            if re.match(r"^[ \t]*git:\s*$", ln):
+                in_tracker, in_git = False, True
+                continue
+            if re.match(r"^[A-Za-z0-9_]+:\s*", ln) and not ln.startswith(" ") and not ln.startswith("\t"):
+                in_tracker = in_git = False
+            if in_tracker:
+                m = re.match(r"^[ \t]+provider:\s*(\S+)", ln)
+                if m:
+                    tracker["provider"] = m.group(1).strip('"')
+            if in_git:
+                m = re.match(r"^[ \t]+provider:\s*(\S+)", ln)
+                if m:
+                    git["provider"] = m.group(1).strip('"')
+                m = re.match(r"^[ \t]+workspace:\s*(\S+)", ln)
+                if m:
+                    git["workspace"] = m.group(1).strip('"')
+                m = re.match(r"^[ \t]+repo:\s*(\S+)", ln)
+                if m:
+                    git["repo"] = m.group(1).strip('"')
+        if tracker:
+            out["tracker"] = tracker
+        if git:
             out["git"] = git
         return out
 

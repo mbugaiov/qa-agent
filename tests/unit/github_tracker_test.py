@@ -72,6 +72,17 @@ STG buildId: abcdef1234567890 (main abcdef1234567890)
                 else:
                     os.environ["GITHUB_REPO"] = prev_r
 
+    def test_fallback_tracker_provider_not_git(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
+                fh.write(
+                    "slug: myapp\n"
+                    "git:\n  provider: github\n  workspace: example-corp\n  repo: my-app\n"
+                    "tracker:\n  provider: github_issues\n"
+                )
+            # Exercise structural parse via load_project_yaml (yaml or fallback).
+            self.assertEqual(tracker_provider(d), "github_issues")
+
     def test_commented_tracker_not_active(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
