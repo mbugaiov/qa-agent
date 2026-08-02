@@ -23,8 +23,9 @@ Output: numbered `REQ-001 … REQ-NNN`. Every scenario traces to ≥1 REQ.
 Normalize each `REQ-*` into `SC-*` (Given/When/Then) grouped by capability in `specs/<capability>.md`
 (`templates/spec.md`). Each `SC-*` lists the `REQ-*` it **Covers**. Surface ambiguities (flag, don't guess).
 
-### Phase 3 — Analyse (live browser, MANDATORY)
-Use the live browser MCP, visible beside the chat (`position: "side"`, lock/unlock). Never headless.
+### Phase 3 — Analyse (live app, MANDATORY)
+Drive the live app via Playwright CLI (preferred) or browser MCP in **headless** mode
+(`docs/BROWSER.md`). Do not open a visible side panel by default.
 Map the site per `qa-site-analysis`. Reuse the map from `project-memory.md` if fresh.
 
 ### Phase 4 — Design cases (from scenarios) + traceability

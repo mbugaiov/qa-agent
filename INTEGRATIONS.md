@@ -34,9 +34,8 @@ self-contained and agent-agnostic.
 | **CLI browser driving** — open → snapshot → interact by ref → re-snapshot → capture | `.curated/playwright` | `automation/README.md` |
 | **Interactive snapshot/ref workflow** — stable refs, re-snapshot on stale | `.curated/playwright-interactive` | `automation/README.md` |
 
-> Note: the **manual** two-pass execution still uses the live `cursor-ide-browser`
-> MCP (human-visible, per `qa-team.mdc`). The OpenAI Playwright CLI is for *scripted*
-> automation in phase 2, complementary — not a replacement.
+> Note: manual two-pass may use browser MCP when no spec exists — **headless by default**
+> (`docs/BROWSER.md` / `qa-team.mdc`). Playwright CLI is preferred for scripted regression.
 
 ## Deliberately NOT adopted
 

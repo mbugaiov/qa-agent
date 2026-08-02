@@ -1,6 +1,6 @@
 # Argus
 
-**Argus** is the QA engine — this repository (`qa-agent`). An agent-driven **manual QA** workspace: feed it **business requirements**, point it at a **live web app**, and it designs test cases, executes them in a visible browser, captures evidence, and produces a Markdown + DOCX report — instead of a human tester doing it by hand.
+**Argus** is the QA engine — this repository (`qa-agent`). An agent-driven **manual QA** workspace: feed it **business requirements**, point it at a **live web app**, and it designs test cases, executes them **headless by default** (Playwright CLI / MCP), captures evidence, and produces a Markdown + DOCX report — instead of a human tester doing it by hand. See `docs/BROWSER.md`.
 
 > **Naming:** Argus is the high-level product name (presentation: *Argus · QA*). Low-level identifiers stay unchanged: folder `qa-agent/`, skills `qa-*`, factory ledger `agent=qa`.
 
@@ -93,7 +93,7 @@ scripts/new_run.sh <slug> <type> "<task>"
 
 ## Requirements (tooling)
 
-- A live browser MCP (document per project in `project-memory.md`; never headless for manual QA).
+- Playwright CLI + optional browser MCP (document per project in `project-memory.md`; **headless by default** — `docs/BROWSER.md`).
 - Python 3 with `python-docx` and `requests`: `pip install python-docx requests`.
 - `ffmpeg` + Playwright for retest recordings (`scripts/record_and_attach.sh`).
 - Node + Playwright only if you opt into phase-2 automation.
@@ -102,7 +102,7 @@ Optional host-installed skills: `qa-site-analysis`, `qa-test-execution`, `qa-rep
 
 ## Principles (see `AGENTS.md` for the full list)
 
-- Live, visible browser only.
+- Headless browser by default (`docs/BROWSER.md`).
 - Two-pass execution on every case (real input + automation).
 - Full traceability: requirement → test case → bug.
 - A bug is confirmed only with evidence.

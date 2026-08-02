@@ -347,6 +347,7 @@ Run from the **engine repo root** (where `scripts/` lives):
 ./scripts/run_automation.sh <slug> --stg
 ```
 
-**Loop mechanics (agent):** use the `loop` skill (background sleeper + sentinel + `notify_on_output`); reset the
-Playwright MCP browser at tick start (`browser_close` → navigate) to avoid the wedged-session no-op trap;
-sanity-check interactivity (e.g. `/login` show-password toggle) before trusting "nothing works".
+**Loop mechanics (agent):** use the `loop` skill (background sleeper + sentinel + `notify_on_output`);
+prefer headless Playwright CLI for retest (`docs/BROWSER.md`). If using MCP, reset at tick start
+(`browser_close` → navigate) headless — do not open a visible window; sanity-check interactivity
+before trusting "nothing works".

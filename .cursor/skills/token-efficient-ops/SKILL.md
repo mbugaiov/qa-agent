@@ -28,9 +28,10 @@ custom REST wrapper (leanest) > CLI with terse flags > MCP (chattiest). Reach fo
 - Fetch quietly: `git fetch -q`. Compare vs remote: `git rev-list --left-right --count origin/main...HEAD`.
 
 ## Testing / browser — cheapest control first
-**Default to the Playwright CLI for EVERYTHING possible. The Playwright MCP is the LAST RESORT** — use it only
-when a live, visible browser is genuinely required (exploratory / two-pass manual QA on an unknown page) AND the
-CLI/specs cannot do it. If a spec can express the check, write/run the spec instead of driving the MCP.
+**Default to the Playwright CLI for EVERYTHING possible (headless).** The Playwright MCP is the LAST RESORT —
+use it only when CLI/specs cannot do the check (exploratory / two-pass on an unknown page). MCP stays
+**headless** unless `docs/BROWSER.md` headed exception applies. If a spec can express the check, write/run
+the spec instead of driving the MCP.
 Ranking (cheapest → most tokens): **Playwright `test` CLI (terse reporter) > `playwright screenshot`/node lib > Playwright MCP.**
 - **Repeatable checks/regression/acceptance → Playwright specs via the CLI, NOT the MCP.** Run the app's suite
   (`npm run test:e2e`) or a targeted case and read only the summary:
@@ -38,11 +39,10 @@ Ranking (cheapest → most tokens): **Playwright `test` CLI (terse reporter) > `
   (`--reporter=dot` = ~1 char/test; `line`/`list` are more verbose). `--last-failed` re-runs only failures.
   Specs also cover what the MCP CAN'T drive (e.g. dnd-kit board drag → `boardDnd.spec.ts`).
 - **One-off capture without interaction:** `./node_modules/.bin/playwright screenshot <url> <file>` (no snapshots in context).
-- **Recordings:** node + Playwright lib via `record_and_attach.sh` (≤10MB, local copy discarded).
-- **Playwright MCP = LAST RESORT** — only when a live/visible browser is required and no CLI/spec path works
-  (unknown-page exploratory, the mandatory visible two-pass). Even then: return **compact values** with
-  `browser_evaluate` (booleans/counts/short strings); take a full `browser_snapshot` ONLY when you need element
-  refs; `browser_console_messages(onlyErrors:true)`. If you find yourself repeating MCP actions, convert to a spec.
+- **Recordings:** node + Playwright lib via `record_and_attach.sh` (headless Chromium + recordVideo; ≤10MB).
+- **Playwright MCP = LAST RESORT** — only when no CLI/spec path works (unknown-page exploratory, two-pass).
+  Stay headless; return **compact values** with `browser_evaluate`; full `browser_snapshot` ONLY for element
+  refs; `browser_console_messages(onlyErrors:true)`. If you repeat MCP actions, convert to a spec.
 - Non-UI checks → `curl`: status (`-o /dev/null -w '%{http_code}'`), headers (`-D-` + `grep`), `/api/health`, auth matrices, JSON (`| jq`/`grep`).
 - Engine self-tests: `bash tests/run_tests.sh 2>&1 | tail -6`, not the whole log.
 
