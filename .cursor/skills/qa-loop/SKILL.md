@@ -59,14 +59,21 @@ comments alone are **not** tick-complete.
 
 0. **Scope (mandatory — never skip, never hardcode):**
 ```bash
-eval "$(./scripts/jira_scope.sh <slug> --log --shell)"
+# Tracker-aware (Jira or GitHub Issues):
+eval "$(./scripts/qa_scope.sh <slug> --log --shell)"
+# Equivalent legacy (Jira-only projects):
+# eval "$(./scripts/jira_scope.sh <slug> --log --shell)"
 # Sets: count, SCOPE_COUNT, keys, SCOPE_KEYS — use either count or SCOPE_COUNT (both set).
 # --log writes scope_check to the factory ledger (required for factory_tick_gate.sh)
 # and posts an optional Teams Adaptive Card (scope + next wake) when
 # QA_FACTORY_TEAMS_WEBHOOK_URL is set (same channel as Hephaestus when URLs match).
 echo "scope count=${SCOPE_COUNT:-$count} keys=${SCOPE_KEYS:-$keys}"
 ```
-**Forbidden:** checking `$SCOPE_COUNT` without `--log --shell`; logging `scope_check count=0` by hand; skipping scope when Jira is configured.
+**GitHub Issues factories** (`project.yaml` → `tracker.provider: github_issues`, e.g. Pantheon):
+scope = open issues with `validate-testing`; keys look like `pantheon#12`.
+Per ticket: `./scripts/qa_handoff.sh <slug> <key> --log` → STG retest →
+`python3 scripts/github_close_issue.py …` (PASS) or `github_return_to_dev.py` (FAIL; comment must include **`QA RETURN`**).
+**Forbidden:** checking `$SCOPE_COUNT` without `--log --shell`; logging `scope_check count=0` by hand; skipping scope when a tracker is configured; using `jira_scope` on a `github_issues` project.
 
 1. `tick_start` + scope step above (scope_check logged by `--log`)
 2. **If `count > 0` (or `SCOPE_COUNT > 0`):** for **each** scope ticket **before browser work**:
