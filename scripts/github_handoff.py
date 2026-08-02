@@ -22,6 +22,7 @@ from github_tracker import (  # noqa: E402
     github_inactive,
     github_repo,
     is_dev_handoff_comment,
+    validate_label,
 )
 
 
@@ -125,7 +126,8 @@ def main() -> int:
 
     hints = extract_hints(handoff_text or all_text)
     labels = [x.get("name", "") for x in (issue.get("labels") or [])]
-    status = "validate-testing" if "validate-testing" in labels else str(issue.get("state"))
+    vlabel = validate_label(a.project)
+    status = vlabel if vlabel in labels else str(issue.get("state"))
     key = f"{slug}#{num}"
 
     payload = {

@@ -85,6 +85,8 @@ def main() -> int:
                 repo_ref,
                 "--state",
                 "open",
+                "--label",
+                label,
                 "--json",
                 "number,title,state,labels",
                 "--limit",
@@ -99,11 +101,9 @@ def main() -> int:
         return emit_inactive(a)
 
     items = json.loads(raw) if raw.strip() else []
+    # --label already scopes the query; keep open-state filter as a safety net.
     open_items = [
-        i
-        for i in items
-        if str(i.get("state", "")).lower() == "open"
-        and any(l.get("name") == label for l in (i.get("labels") or []))
+        i for i in items if str(i.get("state", "")).lower() == "open"
     ]
     open_items.sort(key=lambda i: int(i["number"]))
 
@@ -112,7 +112,7 @@ def main() -> int:
         {
             "key": f"{slug}#{i['number']}",
             "summary": i.get("title", ""),
-            "status": "validate-testing",
+            "status": label,
         }
         for i in open_items
     ]

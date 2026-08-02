@@ -796,6 +796,15 @@ have scripts/qa_handoff.sh
 python3 tests/unit/github_tracker_test.py -q 2>/dev/null \
   && ok "github_tracker unit tests" \
   || no "github_tracker unit tests"
+# Scope query must pass --label so the 100-issue limit applies to in-scope tickets.
+grep -q -- '--label' scripts/github_scope.py \
+  && ok "github_scope passes --label to gh issue list" \
+  || no "github_scope must pass --label (not client-side-only filter)"
+# handoff_read status must use validate_label(), not a hardcoded validate-testing string.
+grep -q 'validate_label(' scripts/github_handoff.py \
+  && ! grep -nE 'status = "validate-testing"' scripts/github_handoff.py >/dev/null \
+  && ok "github_handoff status uses validate_label()" \
+  || no "github_handoff must use validate_label() for status"
 # Template project has no live git/tracker → github_scope must no-op (inactive), not crash.
 OUT=$(python3 scripts/github_scope.py --project "projects/$SLUG" --json 2>/dev/null)
 echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('inactive') is True and d.get('count')==0" \

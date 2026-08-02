@@ -16,6 +16,7 @@ from github_tracker import (  # noqa: E402
     load_project_yaml,
     resolve_github_repo,
     tracker_provider,
+    validate_label,
 )
 
 
@@ -88,6 +89,47 @@ STG buildId: abcdef1234567890 (main abcdef1234567890)
             cfg = load_project_yaml(d)
             self.assertNotEqual((cfg.get("tracker") or {}).get("provider"), "github_issues")
             self.assertEqual(tracker_provider(d), "jira")
+
+    def test_noyaml_fallback_scopes_provider_under_tracker(self) -> None:
+        """git.provider before tracker.provider must not win when PyYAML is absent."""
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
+                fh.write(
+                    "slug: myapp\n"
+                    "git:\n  provider: github\n  workspace: example-corp\n  repo: my-app\n"
+                    "jira:\n  enabled: false\n"
+                    "tracker:\n  provider: github_issues\n"
+                    "  validate_label: qa-validate\n"
+                )
+            import builtins
+
+            real_import = builtins.__import__
+
+            def _block_yaml(name: str, *args: object, **kwargs: object):  # type: ignore[no-untyped-def]
+                if name == "yaml" or name.startswith("yaml."):
+                    raise ImportError("forced no PyYAML")
+                return real_import(name, *args, **kwargs)
+
+            builtins.__import__ = _block_yaml  # type: ignore[assignment]
+            try:
+                cfg = load_project_yaml(d)
+                self.assertEqual((cfg.get("tracker") or {}).get("provider"), "github_issues")
+                self.assertEqual((cfg.get("tracker") or {}).get("validate_label"), "qa-validate")
+                self.assertEqual((cfg.get("git") or {}).get("provider"), "github")
+                self.assertEqual((cfg.get("git") or {}).get("workspace"), "example-corp")
+                self.assertEqual(tracker_provider(d), "github_issues")
+                self.assertEqual(validate_label(d), "qa-validate")
+            finally:
+                builtins.__import__ = real_import  # type: ignore[assignment]
+
+    def test_validate_label_custom(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
+                fh.write(
+                    "slug: myapp\n"
+                    "tracker:\n  provider: github_issues\n  validate_label: qa-validate\n"
+                )
+            self.assertEqual(validate_label(d), "qa-validate")
 
 
 if __name__ == "__main__":

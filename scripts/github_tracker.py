@@ -33,26 +33,45 @@ def load_project_yaml(project_dir: str) -> dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except Exception:
         # Minimal fallback: uncommented tracker/git keys only (ignore # comments).
-        text = open(path, encoding="utf-8").read()
+        # Scope tracker.* keys to the tracker: block so git.provider earlier
+        # in the file cannot win (would mis-route qa_scope.sh to Jira).
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
         out: dict[str, Any] = {}
         active = "\n".join(
             ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")
         )
-        prov = re.search(r"(?m)^[ \t]*provider:\s*(\S+)", active)
-        if prov and re.search(r"(?m)^[ \t]*tracker:\s*$", active):
-            out.setdefault("tracker", {})["provider"] = prov.group(1).strip('"')
-        owner = re.search(r"(?m)^[ \t]*workspace:\s*(\S+)", active)
-        repo = re.search(r"(?m)^[ \t]*repo:\s*(\S+)", active)
-        git_prov = re.search(r"(?m)^[ \t]*provider:\s*(github|bitbucket)\b", active)
-        if owner or repo or git_prov:
+        tracker_block = re.search(
+            r"(?m)^[ \t]*tracker:\s*\n((?:[ \t]+\S.*\n?)*)",
+            active + "\n",
+        )
+        if tracker_block:
+            block = tracker_block.group(1)
+            tracker: dict[str, str] = {}
+            for key in ("provider", "validate_label", "pickup_label", "done_label", "owner", "repo"):
+                m = re.search(rf"(?m)^[ \t]+{key}:\s*(\S+)", block)
+                if m:
+                    tracker[key] = m.group(1).strip('"')
+            if tracker:
+                out["tracker"] = tracker
+        git_block = re.search(
+            r"(?m)^[ \t]*git:\s*\n((?:[ \t]+\S.*\n?)*)",
+            active + "\n",
+        )
+        if git_block:
+            block = git_block.group(1)
             git: dict[str, str] = {}
+            owner = re.search(r"(?m)^[ \t]+workspace:\s*(\S+)", block)
+            repo = re.search(r"(?m)^[ \t]+repo:\s*(\S+)", block)
+            git_prov = re.search(r"(?m)^[ \t]+provider:\s*(github|bitbucket)\b", block)
             if owner:
                 git["workspace"] = owner.group(1).strip('"')
             if repo:
                 git["repo"] = repo.group(1).strip('"')
             if git_prov:
                 git["provider"] = git_prov.group(1)
-            out["git"] = git
+            if git:
+                out["git"] = git
         return out
 
 
