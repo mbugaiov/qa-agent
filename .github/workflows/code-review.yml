@@ -7,6 +7,7 @@ on:
 
 jobs:
   review:
+    name: review (Themis)
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     permissions:
@@ -41,7 +42,7 @@ jobs:
             exit 0
           fi
           git fetch origin "${BASE}" --quiet || true
-          PROMPT="You are the automated reviewer for GitHub PR #${{ github.event.pull_request.number }}. Follow .cursor/rules/code-review.mdc (and AGENTS.md + rules it references). Review ONLY changes vs origin/${BASE} — begin with: git --no-pager diff origin/${BASE}...HEAD — produce exactly the output sections that guide specifies."
+          PROMPT="You are the automated reviewer for GitHub PR #${{ github.event.pull_request.number }}. Follow .cursor/rules/code-review.mdc (and AGENTS.md + rules it references). Review ONLY changes vs origin/${BASE} — begin with: git --no-pager diff origin/${BASE}...HEAD — produce exactly the output sections that guide specifies. Isolation is enforced by the separate CI job isolation (Themis); still fold leak findings into Blocking issues if you see them."
           cursor-agent --force --api-key "$CURSOR_API_KEY" --output-format text -p "$PROMPT" > review.md || true
           [[ -s review.md ]] || echo "Cursor review produced no output (see build log above)." > review.md
           cat review.md
@@ -93,6 +94,41 @@ jobs:
                 body: full,
               });
             }
+
+  isolation:
+    name: isolation (Themis)
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/checkout@v4
+        with:
+          repository: mbugaiov/themis-agent
+          path: .themis-agent
+      - name: Install Cursor CLI
+        run: |
+          curl -fsSL https://cursor.com/install | bash
+          echo "$HOME/.cursor/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: isolation (Themis)
+        env:
+          CURSOR_API_KEY: ${{ secrets.CURSOR_API_KEY }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          git fetch origin "${BASE}" --quiet || true
+          bash .themis-agent/scripts/ci_isolation.sh --mode engine --base "origin/${BASE}"
+      - name: Upload isolation artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolation-review-md
+          path: isolation-review.md
+          retention-days: 7
+          if-no-files-found: ignore
 
   autofix:
     needs: review
