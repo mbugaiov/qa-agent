@@ -37,8 +37,6 @@ def main() -> int:
     a = ap.parse_args()
 
     num = parse_key(a.key)
-    owner, repo = github_repo(a.project)
-    repo_ref = f"{owner}/{repo}"
     vlabel = validate_label(a.project)
     plabel = pickup_label(a.project)
 
@@ -64,11 +62,14 @@ def main() -> int:
         print(body)
         return 0
 
+    owner, repo = github_repo(a.project)
+    repo_ref = f"{owner}/{repo}"
+
     subprocess.run(
         ["gh", "issue", "comment", str(num), "-R", repo_ref, "--body", body],
         check=True,
     )
-    subprocess.run(
+    label_res = subprocess.run(
         [
             "gh",
             "issue",
@@ -82,7 +83,15 @@ def main() -> int:
             vlabel,
         ],
         check=False,
+        capture_output=True,
+        text=True,
     )
+    if label_res.returncode != 0:
+        print(
+            f"GITHUB_RETURN_LABEL_FAIL {repo_ref}#{num}: {label_res.stderr or label_res.stdout}",
+            file=sys.stderr,
+        )
+        return 1
     # Keep issue open for Dev
     print(f"GITHUB_RETURN_OK {repo_ref}#{num} → {plabel}")
     return 0

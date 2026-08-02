@@ -35,8 +35,6 @@ def main() -> int:
     a = ap.parse_args()
 
     num = parse_key(a.key)
-    owner, repo = github_repo(a.project)
-    repo_ref = f"{owner}/{repo}"
     vlabel = validate_label(a.project)
     dlabel = done_label(a.project)
 
@@ -44,12 +42,15 @@ def main() -> int:
         print(f"[dry-run] comment + close #{num}; −{vlabel} +{dlabel}")
         return 0
 
+    owner, repo = github_repo(a.project)
+    repo_ref = f"{owner}/{repo}"
+
     subprocess.run(
         ["gh", "issue", "comment", str(num), "-R", repo_ref, "--body", a.comment],
         check=True,
     )
-    # Labels: done on, validate-testing off
-    subprocess.run(
+    # Labels: done on, validate-testing off — fail if labels cannot be applied
+    label_res = subprocess.run(
         [
             "gh",
             "issue",
@@ -63,7 +64,15 @@ def main() -> int:
             vlabel,
         ],
         check=False,
+        capture_output=True,
+        text=True,
     )
+    if label_res.returncode != 0:
+        print(
+            f"GITHUB_CLOSE_LABEL_FAIL {repo_ref}#{num}: {label_res.stderr or label_res.stdout}",
+            file=sys.stderr,
+        )
+        return 1
     subprocess.run(
         ["gh", "issue", "close", str(num), "-R", repo_ref, "--reason", "completed"],
         check=True,

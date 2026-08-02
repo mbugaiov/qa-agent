@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 from github_tracker import (  # noqa: E402
     extract_hints,
+    github_inactive,
     github_repo,
     is_dev_handoff_comment,
 )
@@ -41,28 +42,69 @@ def main() -> int:
 
     slug = os.path.basename(a.project.rstrip("/"))
     num = parse_key(a.key)
+
+    if github_inactive(a.project):
+        payload = {
+            "key": f"{slug}#{num}",
+            "status": "inactive",
+            "summary": "",
+            "description": "",
+            "comments": [],
+            "handoff": "",
+            "hints": {},
+            "labels": [],
+            "inactive": True,
+        }
+        if a.json:
+            print(json.dumps(payload, indent=2))
+        else:
+            print(f"=== {slug}#{num} [inactive] ===")
+            print("GitHub tracker inactive (missing repo config or gh CLI)")
+        return 0
+
     owner, repo = github_repo(a.project)
     repo_ref = f"{owner}/{repo}"
 
-    issue_raw = subprocess.check_output(
-        [
-            "gh",
-            "issue",
-            "view",
-            str(num),
-            "-R",
-            repo_ref,
-            "--json",
-            "number,title,state,labels,body",
-        ],
-        text=True,
-    )
-    issue = json.loads(issue_raw)
-    comments_raw = subprocess.check_output(
-        ["gh", "api", f"repos/{owner}/{repo}/issues/{num}/comments"],
-        text=True,
-    )
-    comments = json.loads(comments_raw) if comments_raw.strip() else []
+    try:
+        issue_raw = subprocess.check_output(
+            [
+                "gh",
+                "issue",
+                "view",
+                str(num),
+                "-R",
+                repo_ref,
+                "--json",
+                "number,title,state,labels,body",
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        issue = json.loads(issue_raw)
+        comments_raw = subprocess.check_output(
+            ["gh", "api", f"repos/{owner}/{repo}/issues/{num}/comments"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        comments = json.loads(comments_raw) if comments_raw.strip() else []
+    except (OSError, subprocess.CalledProcessError) as exc:
+        print(f"GITHUB_HANDOFF_INACTIVE {repo_ref}#{num}: {exc}", file=sys.stderr)
+        if a.json:
+            print(
+                json.dumps(
+                    {
+                        "key": f"{slug}#{num}",
+                        "status": "inactive",
+                        "inactive": True,
+                        "handoff": "",
+                        "hints": {},
+                        "comments": [],
+                        "labels": [],
+                    }
+                )
+            )
+            return 0
+        return 1
 
     comments_out = []
     all_text = (issue.get("body") or "") + "\n"

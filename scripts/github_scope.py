@@ -20,7 +20,8 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 from github_tracker import (  # noqa: E402
-    github_repo,
+    github_inactive,
+    resolve_github_repo,
     validate_label,
 )
 
@@ -35,6 +36,25 @@ def log_scope_check(slug: str, keys: list[str]) -> None:
     )
 
 
+def emit_inactive(a: argparse.Namespace) -> int:
+    payload = {"keys": [], "count": 0, "jql": "", "inactive": True, "issues": []}
+    if a.json:
+        print(json.dumps(payload))
+    elif a.shell:
+        print("keys=''")
+        print("count=0")
+        print("SCOPE_KEYS=''")
+        print("SCOPE_COUNT=0")
+        print("SCOPE_JQL=''")
+        print("jql=''")
+        print("inactive=1")
+    else:
+        print("keys=")
+        print("count=0")
+        print("inactive=1")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--project", required=True)
@@ -44,28 +64,40 @@ def main() -> int:
     a = ap.parse_args()
 
     slug = os.path.basename(a.project.rstrip("/"))
-    owner, repo = github_repo(a.project)
+    if github_inactive(a.project):
+        if a.log:
+            log_scope_check(slug, [])
+        return emit_inactive(a)
+
+    resolved = resolve_github_repo(a.project)
+    assert resolved is not None
+    owner, repo = resolved
     label = validate_label(a.project)
     repo_ref = f"{owner}/{repo}"
 
-    # List open issues; filter label client-side.
-    # Note: `gh issue list --label X` can miss newly labeled issues; open+filter is reliable.
-    raw = subprocess.check_output(
-        [
-            "gh",
-            "issue",
-            "list",
-            "-R",
-            repo_ref,
-            "--state",
-            "open",
-            "--json",
-            "number,title,state,labels",
-            "--limit",
-            "100",
-        ],
-        text=True,
-    )
+    try:
+        raw = subprocess.check_output(
+            [
+                "gh",
+                "issue",
+                "list",
+                "-R",
+                repo_ref,
+                "--state",
+                "open",
+                "--json",
+                "number,title,state,labels",
+                "--limit",
+                "100",
+            ],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        if a.log:
+            log_scope_check(slug, [])
+        return emit_inactive(a)
+
     items = json.loads(raw) if raw.strip() else []
     open_items = [
         i
@@ -94,7 +126,6 @@ def main() -> int:
         return 0
 
     if a.shell:
-        # Match jira_scope --shell exports
         print(f"count={len(keys)}")
         print(f"SCOPE_COUNT={len(keys)}")
         print(f"keys={shlex.quote(','.join(keys))}")

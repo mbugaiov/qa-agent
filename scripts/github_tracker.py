@@ -64,7 +64,8 @@ def tracker_provider(project_dir: str) -> str:
     return "jira"
 
 
-def github_repo(project_dir: str) -> tuple[str, str]:
+def resolve_github_repo(project_dir: str) -> tuple[str, str] | None:
+    """Return (owner, repo) or None when unconfigured (offline / template)."""
     cfg = load_project_yaml(project_dir)
     git = cfg.get("git") or {}
     tracker = cfg.get("tracker") or {}
@@ -78,16 +79,38 @@ def github_repo(project_dir: str) -> tuple[str, str]:
         or (git.get("repo") if isinstance(git, dict) else None)
         or os.environ.get("GITHUB_REPO", "")
     )
-    # secrets override
     env = load_env_file(os.path.join(project_dir, ".secrets", "github.env"))
-    owner = env.get("GITHUB_OWNER", owner)
-    repo = env.get("GITHUB_REPO", repo)
+    owner = env.get("GITHUB_OWNER", owner) or owner
+    repo = env.get("GITHUB_REPO", repo) or repo
     if not owner or not repo:
+        return None
+    return str(owner), str(repo)
+
+
+def github_repo(project_dir: str) -> tuple[str, str]:
+    resolved = resolve_github_repo(project_dir)
+    if not resolved:
         raise SystemExit(
-            f"GitHub owner/repo missing in {project_dir}/project.yaml tracker.git "
+            f"GitHub owner/repo missing in {project_dir}/project.yaml tracker/git "
             "or .secrets/github.env"
         )
-    return str(owner), str(repo)
+    return resolved
+
+
+def github_inactive(project_dir: str) -> bool:
+    """True when GitHub tracker cannot run (no repo config or no gh CLI)."""
+    if resolve_github_repo(project_dir) is None:
+        return True
+    try:
+        subprocess.run(
+            ["gh", "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return True
+    return False
 
 
 def validate_label(project_dir: str) -> str:
@@ -119,6 +142,15 @@ def gh_json(args: list[str]) -> Any:
 
     raw = subprocess.check_output(["gh", *args], text=True)
     return json.loads(raw) if raw.strip() else None
+
+
+def gh_run(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["gh", *args],
+        check=check,
+        text=True,
+        capture_output=True,
+    )
 
 
 def extract_hints(text: str) -> dict[str, str]:
