@@ -69,8 +69,8 @@ eval "$(./scripts/qa_scope.sh <slug> --log --shell)"
 # QA_FACTORY_TEAMS_WEBHOOK_URL is set (same channel as Hephaestus when URLs match).
 echo "scope count=${SCOPE_COUNT:-$count} keys=${SCOPE_KEYS:-$keys}"
 ```
-**GitHub Issues factories** (`project.yaml` → `tracker.provider: github_issues`, e.g. Pantheon):
-scope = open issues with `validate-testing`; keys look like `pantheon#12`.
+**GitHub Issues factories** (`project.yaml` → `tracker.provider: github_issues`):
+scope = open issues with `validate-testing`; keys look like `<slug>#12`.
 Per ticket: `./scripts/qa_handoff.sh <slug> <key> --log` → STG retest →
 `python3 scripts/github_close_issue.py …` (PASS) or `github_return_to_dev.py` (FAIL; comment must include **`QA RETURN`**).
 **Forbidden:** checking `$SCOPE_COUNT` without `--log --shell`; logging `scope_check count=0` by hand; skipping scope when a tracker is configured; using `jira_scope` on a `github_issues` project.

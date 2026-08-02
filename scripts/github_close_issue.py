@@ -2,7 +2,7 @@
 """Close a GitHub Issue after QA PASS (Done equivalent).
 
 Usage:
-    python3 scripts/github_close_issue.py --project projects/<slug> --key pantheon#12 \
+    python3 scripts/github_close_issue.py --project projects/<slug> --key <slug>#12 \
         --comment "QA PASS — evidence …"
 """
 from __future__ import annotations

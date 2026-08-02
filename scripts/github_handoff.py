@@ -2,7 +2,7 @@
 """Read Dev STG handoff from a GitHub Issue before retest.
 
 Usage:
-    python3 scripts/github_handoff.py --project projects/<slug> --key pantheon#12
+    python3 scripts/github_handoff.py --project projects/<slug> --key <slug>#12
     python3 scripts/github_handoff.py --project projects/<slug> --key 12 --json --log
 """
 from __future__ import annotations

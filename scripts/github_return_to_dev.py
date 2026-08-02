@@ -2,7 +2,7 @@
 """Return validate-testing GitHub Issue to Hephaestus (QA RETURN).
 
 Usage:
-    python3 scripts/github_return_to_dev.py --project projects/<slug> --key pantheon#12 \
+    python3 scripts/github_return_to_dev.py --project projects/<slug> --key <slug>#12 \
         --reason "…" --steps-tried "…"
 """
 from __future__ import annotations
