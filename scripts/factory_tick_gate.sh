@@ -315,6 +315,29 @@ def require_bug_jira_evidence(key, dod, errors):
             f"(authority from openspec_read.sh)"
         )
 
+def has_verdict_review_pass(events, dod):
+    """Argus lead critique before Done/FAIL/RETURN (skill qa-verdict-review)."""
+    if str(dod.get("verdict_review", "")).lower() in ("pass", "true", "1", "yes"):
+        return True
+    for ev in events:
+        if ev.get("event") != "verdict_review":
+            continue
+        d = ev.get("detail") or {}
+        if str(d.get("result", "")).lower() in ("pass", "true", "ok", "1", "yes"):
+            return True
+    return False
+
+def require_verdict_review(key, events, dod, verdict, errors):
+    if verdict not in ("DONE", "FAIL", "RETURN_DEV"):
+        return
+    if has_verdict_review_pass(events, dod):
+        return
+    errors.append(
+        f"{key}: {verdict} requires verdict_review=pass "
+        f"(skill qa-verdict-review → check_verdict_review.sh; "
+        f"log verdict_review result=pass or dod_check verdict_review=pass)"
+    )
+
 checked = {}
 
 for key in scope_keys:
@@ -354,6 +377,7 @@ for key in scope_keys:
         if not has_transition(events) and not dod.get("transition"):
             errors.append(f"{key}: FAIL requires transition to=In Progress (V/T cannot stay open)")
         require_bug_jira_evidence(key, dod, errors)
+        require_verdict_review(key, events, dod, verdict, errors)
 
     if verdict == "RETURN_DEV":
         if not dod.get("bug_filed") and not dod.get("dev_ticket"):
@@ -373,6 +397,7 @@ for key in scope_keys:
         if str(dod.get("jira_status", "")).lower() == "validate/testing" and not (has_transition(events) or dod.get("transition")):
             errors.append(f"{key}: RETURN_DEV — must move ticket off Validate/Testing same tick")
         require_bug_jira_evidence(key, dod, errors)
+        require_verdict_review(key, events, dod, verdict, errors)
 
     if verdict == "DONE":
         if not dod.get("two_pass"):
@@ -388,6 +413,7 @@ for key in scope_keys:
             errors.append(f"{key}: DONE requires recording_attached=true or recording_exempt=true")
         if not dod.get("openspec_read"):
             errors.append(f"{key}: DONE requires openspec_read=true (spec authority checked)")
+        require_verdict_review(key, events, dod, verdict, errors)
 
     handoff_status = ticket_handoff_status(key)
     if handoff_status:

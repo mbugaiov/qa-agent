@@ -376,15 +376,40 @@ TC_STEPS="tests/fixtures/tc-steps-sample.txt"
 TC_META=(--scenario SC-SELFTEST --req REQ-SELFTEST --steps-file "$TC_STEPS" --expected "Observable THEN outcome on canonical source")
 ./scripts/factory_log.sh "$SLUG" TST-99 handoff_read >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-99 --title "Selftest gate ticket 99" "${TC_META[@]}" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-99 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-99.md >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-99 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-99.md verdict_review=true >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 handoff_read >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-100 --title "Selftest gate ticket 100" "${TC_META[@]}" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-100 transition to=In\ Progress reason="env blocked" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-100 dod_check verdict=RETURN_DEV bug_filed=TST-200 transition=In\ Progress openspec_read=true openspec_req=REQ-TEST dev_handoff=handoff/TST-100.md retest_attempted=true alternate_locators_tried=true feature_steps_executed=true bug_recording_attached=true bug_screenshot_attached=true scope_posted=true tc_path=test-cases/TC-TST-100.md >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-100 dod_check verdict=RETURN_DEV bug_filed=TST-200 transition=In\ Progress openspec_read=true openspec_req=REQ-TEST dev_handoff=handoff/TST-100.md retest_attempted=true alternate_locators_tried=true feature_steps_executed=true bug_recording_attached=true bug_screenshot_attached=true scope_posted=true tc_path=test-cases/TC-TST-100.md verdict_review=true >/dev/null
 GATE_NO_DRAIN=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_NO_DRAIN_EC=$?
 echo "$GATE_NO_DRAIN" | grep -qi "backlog_drained" && ok "factory_tick_gate requires backlog_drained after real work" || no "factory_tick_gate backlog_drained requirement"
 ./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=0 >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" >/dev/null && ok "factory_tick_gate opens with terminal dod_check" || no "factory_tick_gate should open"
+
+# Verdict review gate (qa-verdict-review)
+have templates/verdict-review.md
+have .cursor/skills/qa-verdict-review/SKILL.md
+have scripts/check_verdict_review.sh
+chmod +x scripts/check_verdict_review.sh
+printf '%s\n' 'LGTM - no blocking gaps found.' >"/tmp/vr-lgtm.md"
+./scripts/check_verdict_review.sh /tmp/vr-lgtm.md >/dev/null && ok "check_verdict_review LGTM" || no "check_verdict_review LGTM"
+printf '%s\n' '## Summary' 'x' '' '## Blocking gaps' 'Missing OpenSpec THEN' '' '## Suggestions' 'None.' >"/tmp/vr-block.md"
+./scripts/check_verdict_review.sh /tmp/vr-block.md >/dev/null 2>&1; [[ $? -ne 0 ]] && ok "check_verdict_review blocks gaps" || no "check_verdict_review should fail on gaps"
+sleep 1
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-verdict-review >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-VR count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-VR handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-VR --title "Selftest verdict review" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-VR dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true >/dev/null
+GATE_VR=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_VR_EC=$?
+[[ "$GATE_VR_EC" -ne 0 ]] && echo "$GATE_VR" | grep -qi "verdict_review" \
+  && ok "factory_tick_gate requires verdict_review on DONE" \
+  || no "factory_tick_gate verdict_review (got ec=$GATE_VR_EC: $GATE_VR)"
+./scripts/factory_log.sh "$SLUG" TST-VR dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true verdict_review=pass >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=0 >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" >/dev/null \
+  && ok "factory_tick_gate opens with verdict_review=pass" \
+  || no "factory_tick_gate should open after verdict_review"
 
 # Regression: after real work, a correct rescan to count=0 must still require backlog_drained
 # (completed keys drop off the latest scope_check — detection must use the union of all scans).
@@ -394,7 +419,7 @@ sleep 1
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-110 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-110 handoff_read >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-110 --title "Selftest drain empty rescan" "${TC_META[@]}" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-110 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-110.md >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-110 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-110.md verdict_review=true >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys= count=0 >/dev/null
 GATE_EMPTY_RESCAN=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_EMPTY_RESCAN_EC=$?
 [[ "$GATE_EMPTY_RESCAN_EC" -ne 0 ]] && echo "$GATE_EMPTY_RESCAN" | grep -qi "backlog_drained" \
@@ -411,7 +436,7 @@ sleep 1
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-111 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-111 handoff_read >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-111 --title "Selftest drain SKIP_DEV remainder done" "${TC_META[@]}" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-111 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-111.md >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-111 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true scope_posted=true tc_path=test-cases/TC-TST-111.md verdict_review=true >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-112 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-112 handoff_read status=In\ Progress >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-112 --title "Selftest drain SKIP_DEV remainder skip" "${TC_META[@]}" >/dev/null
@@ -567,7 +592,7 @@ echo "== 17. Factory tick gate — FAIL and SKIP_DEV =="
 ./scripts/factory_log.sh "$SLUG" TST-200 handoff_read >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-200 --title "Selftest FAIL terminal" >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-200 transition to=In\ Progress reason=regression >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-200 dod_check verdict=FAIL reason=regression bug_filed=TST-300 openspec_read=true openspec_req=REQ-TEST dev_handoff=handoff/TST-200.md retest_attempted=true feature_steps_executed=true two_pass=true transition=In\ Progress bug_recording_attached=true bug_screenshot_attached=true >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-200 dod_check verdict=FAIL reason=regression bug_filed=TST-300 openspec_read=true openspec_req=REQ-TEST dev_handoff=handoff/TST-200.md retest_attempted=true feature_steps_executed=true two_pass=true transition=In\ Progress bug_recording_attached=true bug_screenshot_attached=true verdict_review=true >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" --keys TST-200 >/dev/null && ok "factory_tick_gate accepts FAIL with full DoD" || no "factory_tick_gate FAIL terminal"
 ./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-skip-ok >/dev/null
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-201 count=1 >/dev/null
@@ -629,7 +654,7 @@ echo "$GATE_IQA2" | grep -qi "marathon" && ok "factory_tick_gate rejects QA_CONT
 ./scripts/factory_log.sh "$SLUG" _loop marathon_start ticket=TST-209 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-209 handoff_read status=In\ Progress labels=impl-qa >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-209 --title "Selftest impl-qa marathon DONE" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-209 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=N/A recording_attached=true retest_attempted=true feature_steps_executed=true openspec_read=true >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-209 dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=N/A recording_attached=true retest_attempted=true feature_steps_executed=true openspec_read=true verdict_review=true >/dev/null
 ./scripts/factory_tick_gate.sh "$SLUG" --keys TST-209 >/dev/null && ok "factory_tick_gate accepts DONE during impl-qa marathon" || no "factory_tick_gate marathon DONE"
 
 echo "== 17d. Factory tick gate — bug evidence package =="
@@ -637,7 +662,7 @@ echo "== 17d. Factory tick gate — bug evidence package =="
 ./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-207 count=1 >/dev/null
 ./scripts/factory_log.sh "$SLUG" TST-207 handoff_read status=Validate/Testing >/dev/null
 ./scripts/ticket_tc.sh "$SLUG" TST-207 --title "Selftest bug evidence required" >/dev/null
-./scripts/factory_log.sh "$SLUG" TST-207 dod_check verdict=FAIL bug_filed=TST-300 openspec_read=true dev_handoff=handoff/TST-207.md retest_attempted=true feature_steps_executed=true transition=In\ Progress >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-207 dod_check verdict=FAIL bug_filed=TST-300 openspec_read=true dev_handoff=handoff/TST-207.md retest_attempted=true feature_steps_executed=true transition=In\ Progress verdict_review=true >/dev/null
 GATE_EV=$(./scripts/factory_tick_gate.sh "$SLUG" --keys TST-207 2>&1)
 echo "$GATE_EV" | grep -qi "bug_recording_attached" && ok "factory_tick_gate requires bug recording" || no "factory_tick_gate bug recording"
 echo "$GATE_EV" | grep -qi "bug_screenshot_attached" && ok "factory_tick_gate requires bug screenshot" || no "factory_tick_gate bug screenshot"
