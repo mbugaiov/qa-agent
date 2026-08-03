@@ -85,8 +85,9 @@ scripts/new_run.sh <slug> <type> "<task>"
 | `scripts/github_create_issue.py` | File bugs into GitHub Issues (`github_issues` tracker) — dedupe + `confirmed-defect`→`impl-dev` |
 | `scripts/create_bug_issue.py` | Tracker-aware router → Jira or GitHub create script |
 | `templates/jira-task.md` | Jira Task description template: business context, Requirement, OpenSpec, Gherkin scenarios, acceptance criteria |
-| `scripts/record_and_attach.sh` | Record retest (Playwright), compress ≤10MB, attach to Jira **or** GitHub Issues (auto-routes), delete local copy |
-| `scripts/github_attach_evidence.py` | Upload evidence file to a GitHub Issue (secret gist + comment; project token) |
+| `scripts/record_and_attach.sh` | Record retest (Playwright), compress, attach to Jira **or** GitHub Issues (GIF inline comment), delete local copy |
+| `scripts/github_attach_evidence.py` | Convert video→GIF, upload, post **inline** `![…](url)` on the GitHub Issue |
+| `scripts/video_to_gif.py` | ffmpeg palette GIF for GitHub comment embedding |
 | `scripts/factory_log.sh` | Append factory tick/ticket events to `projects/<slug>/factory/runs/*.jsonl` |
 | `scripts/factory_status.sh` | Offline summary of factory ledger (open tickets, last failures) |
 | `scripts/run_automation.sh` | Run project Playwright specs (`--stg`, `--url`, `--no-server`, or local via `server.env` + `server.manage`) |
