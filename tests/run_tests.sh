@@ -914,7 +914,7 @@ ATTACH_OUT=$(python3 scripts/github_attach_evidence.py --project "projects/$GH_S
 [[ "$ATTACH_EC" -eq 3 ]] && echo "$ATTACH_OUT" | grep -qi "GITHUB_ATTACH_TOKEN_REQUIRED" \
   && ok "github_attach_evidence requires project token" \
   || no "github_attach_evidence must exit 3 without token (got ec=$ATTACH_EC: $ATTACH_OUT)"
-grep_ok "github_attach_evidence\|secret gist" scripts/record_and_attach.sh "record_and_attach routes GitHub via github_attach_evidence"
+grep_ok "github_attach_evidence\|qa-evidence\|viewable" scripts/record_and_attach.sh "record_and_attach routes GitHub via github_attach_evidence"
 # Jira path: require projects/<slug>/.secrets/jira.env — ambient JIRA_* must not attach
 mkdir -p "projects/$SLUG/.secrets"
 cat > "projects/$SLUG/.secrets/server.env" <<EOF
@@ -937,10 +937,14 @@ rm -f "$REC_STEPS"
   || no "record_and_attach must require jira.env (got ec=$REC_EC: $REC_OUT)"
 grep_ok "unset JIRA_BASE_URL JIRA_EMAIL JIRA_API_TOKEN" scripts/record_and_attach.sh \
   "record_and_attach clears ambient JIRA_* before sourcing jira.env"
-# gh gist create: secret is default; --secret flag removed in modern gh CLI
-! grep -nE '^\s*\["gh", "gist", "create".*--secret' scripts/github_create_issue.py \
-  && ok "secret_gist_upload omits removed --secret flag" \
-  || no "secret_gist_upload must not pass --secret (gh CLI removed it)"
+# gh gist create: still used for text-only evidence; media uses qa-evidence branch
+! grep -nE '^\s*\["gh", "gist", "create".*--secret' scripts/github_evidence.py scripts/github_create_issue.py \
+  && ok "gist upload omits removed --secret flag" \
+  || no "gist upload must not pass --secret (gh CLI removed it)"
+grep_ok "qa-evidence\|build_evidence_markdown" scripts/github_attach_evidence.py \
+  "github_attach_evidence embeds viewable media (not opaque base64 gist)"
+grep_ok "Preview \(inline\)\|extract_video_preview" scripts/github_evidence.py \
+  "video evidence includes inline preview frames"
 DRY=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --comment "pass" --dry-run 2>&1)
 echo "$DRY" | grep -qi "dry-run" && ok "github_close_issue dry-run" || no "github_close_issue dry-run"
 DRY=$(python3 scripts/github_return_to_dev.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --reason "x" --steps-tried "- y" --dry-run 2>&1)

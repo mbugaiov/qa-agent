@@ -5,7 +5,8 @@ Mirrors create_jira_issue.py for non-Jira trackers:
   - labels: qa-agent + caller labels; severity-sN; confirmed-defect → impl-dev
   - dedupe open issues by normalized title (default on)
   - optional --related-key comment on the feature ticket
-  - --attach uploads secret gist via project GITHUB_TOKEN (never ambient-account mix)
+  - --attach uploads viewable evidence (qa-evidence branch + inline previews;
+    project GITHUB_TOKEN only — never ambient-account mix)
 
 Usage:
     python3 scripts/github_create_issue.py --project projects/<slug> \\
@@ -31,6 +32,7 @@ from typing import Any
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
+from github_evidence import build_evidence_markdown  # noqa: E402
 from github_tracker import (  # noqa: E402
     github_inactive,
     github_repo,
@@ -158,33 +160,6 @@ def ensure_labels_exist(repo_ref: str, labels: list[str], *, env: dict[str, str]
             stderr=subprocess.DEVNULL,
             env=env,
         )
-
-
-def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | None:
-    """Upload evidence as a *secret* gist using the project GH_TOKEN env only.
-
-    Current `gh gist create` defaults to secret; `--secret` was removed (use `--public`
-    only when deliberately sharing). Never pass `--public` for QA evidence.
-    """
-    if not os.path.isfile(path):
-        return None
-    try:
-        out = subprocess.check_output(
-            ["gh", "gist", "create", path, "--desc", desc[:80]],
-            text=True,
-            stderr=subprocess.PIPE,
-            env=env,
-        ).strip()
-    except subprocess.CalledProcessError as e:
-        err = (e.stderr or e.stdout or "").strip()
-        if err:
-            print(f"secret gist upload error: {err}", file=sys.stderr)
-        return None
-    except OSError as e:
-        print(f"secret gist upload error: {e}", file=sys.stderr)
-        return None
-    lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
-    return lines[-1] if lines else None
 
 
 def main() -> int:
@@ -318,32 +293,36 @@ def main() -> int:
 
     key = f"{slug}#{num}"
 
-    evidence_lines: list[str] = ["## Evidence attachments", ""]
+    evidence_parts: list[str] = []
     attached_ok = False
     screenshot_ok = False
     recording_ok = False
     for path in a.attach:
         if not os.path.isfile(path):
             print(f"  ! attachment not found: {path}", file=sys.stderr)
-            evidence_lines.append(f"- missing: `{path}`")
+            evidence_parts.append(f"- missing: `{path}`")
             continue
-        gist_url = secret_gist_upload(path, f"qa-agent evidence for {key}", env=gh_env)
+        built = build_evidence_markdown(
+            path,
+            owner=owner,
+            repo=repo,
+            issue_key=key,
+            caption="Evidence attachment",
+            env=gh_env,
+        )
         base = os.path.basename(path)
-        if gist_url:
+        if built:
+            md, flag = built
             attached_ok = True
-            lower = base.lower()
-            if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+            evidence_parts.append(md)
+            if flag.startswith("bug_screenshot"):
                 screenshot_ok = True
-                evidence_lines.append(f"- ![{base}]({gist_url})")
-            elif lower.endswith((".mp4", ".webm", ".mov", ".m4v")):
+            if flag.startswith("bug_recording"):
                 recording_ok = True
-                evidence_lines.append(f"- [{base}]({gist_url})")
-            else:
-                evidence_lines.append(f"- [{base}]({gist_url})")
-            print(f"  attached {base} → secret gist {gist_url}")
+            print(f"  attached {base} → viewable evidence ({flag})")
         else:
-            evidence_lines.append(f"- upload failed: `{path}`")
-            print(f"  ! secret gist upload failed for {path}", file=sys.stderr)
+            evidence_parts.append(f"- upload failed: `{path}`")
+            print(f"  ! evidence upload failed for {path}", file=sys.stderr)
 
     if a.attach:
         subprocess.run(
@@ -355,15 +334,15 @@ def main() -> int:
                 "-R",
                 repo_ref,
                 "--body",
-                "\n".join(evidence_lines),
+                "\n\n".join(evidence_parts) if evidence_parts else "_no evidence_",
             ],
             check=False,
             env=gh_env,
         )
         if screenshot_ok:
-            print("  bug_screenshot_attached=true (secret gist via project token)")
+            print("  bug_screenshot_attached=true (inline on qa-evidence branch)")
         if recording_ok:
-            print("  bug_recording_attached=true (secret gist via project token)")
+            print("  bug_recording_attached=true (preview frames + mp4 on qa-evidence)")
         if not attached_ok:
             print(key)
             print(
