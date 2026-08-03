@@ -575,6 +575,15 @@ OSWT="projects/$SLUG/.openspec-fixture"
 rm -rf "$OSWT"
 mkdir -p "$OSWT/openspec/specs/auth"
 printf '# Auth capability\n\nWHEN user logs in THEN dashboard loads.\n' > "$OSWT/openspec/specs/auth/spec.md"
+# Change without Hermes extras — absence must stay quiet (no spurious FILE: lines)
+mkdir -p "$OSWT/openspec/changes/chg-no-hermes/specs/auth"
+printf '# Delta auth (no hermes)\n' > "$OSWT/openspec/changes/chg-no-hermes/specs/auth/spec.md"
+# Change with Hermes BA artifacts (Argus AC oracle)
+CHG="chg-hermes-ac"
+mkdir -p "$OSWT/openspec/changes/$CHG/specs/auth"
+printf '# Delta auth for hermes change\n' > "$OSWT/openspec/changes/$CHG/specs/auth/spec.md"
+printf 'Feature: Login acceptance\n  Scenario: user reaches dashboard\n    Given a valid user\n    When they log in\n    Then the dashboard loads\n' > "$OSWT/openspec/changes/$CHG/acceptance.feature"
+printf '# Traceability\n\n| REQ-AUTH-001 | Scenario: user reaches dashboard |\n' > "$OSWT/openspec/changes/$CHG/traceability.md"
 cat > "projects/$SLUG/.secrets/server.env" <<EOF
 SERVER_URL=http://localhost:59999
 SERVER_GIT_WORKTREE=$ROOT/$OSWT
@@ -582,6 +591,16 @@ EOF
 OUT=$(./scripts/openspec_read.sh "$SLUG" --cap auth 2>&1)
 echo "$OUT" | grep -qi "Auth capability" && ok "openspec_read prints spec excerpt" || no "openspec_read output"
 echo "$OUT" | grep -q "openspec/specs/auth/spec.md" && ok "openspec_read cites spec path" || no "openspec_read path"
+OUT=$(./scripts/openspec_read.sh "$SLUG" --change "$CHG" --cap auth 2>&1)
+echo "$OUT" | grep -q "openspec/changes/$CHG/acceptance.feature" && ok "openspec_read --change prints acceptance.feature" || no "openspec_read --change acceptance.feature"
+echo "$OUT" | grep -qi "Login acceptance" && ok "openspec_read --change prints Hermes feature body" || no "openspec_read --change Hermes body"
+echo "$OUT" | grep -q "openspec/changes/$CHG/traceability.md" && ok "openspec_read --change prints traceability.md" || no "openspec_read --change traceability.md"
+OUT=$(./scripts/openspec_read.sh "$SLUG" --change chg-no-hermes --cap auth 2>&1)
+echo "$OUT" | grep -q "Delta auth (no hermes)" && ok "openspec_read --change prints delta without Hermes" || no "openspec_read --change delta only"
+# Hermes extras are only under openspec/changes/<id>/ — do not match QA REQ index paths
+! echo "$OUT" | grep -qE 'openspec/changes/[^ ]+/(acceptance\.feature|traceability\.md|requirements\.md|review\.md)' \
+  && ok "openspec_read --change quiet when Hermes extras absent" \
+  || no "openspec_read --change must stay quiet without Hermes files"
 
 echo "== 16. Test-data scripts (offline gating) =="
 have scripts/test_data_prep.sh
