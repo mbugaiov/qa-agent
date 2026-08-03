@@ -1,6 +1,6 @@
 # Bug Register — <Target Name> — <date>
 
-> **Evidence is mandatory.** A bug is not filed and not CONFIRMED without Jira attachments:
+> **Evidence is mandatory.** A bug is not filed and not CONFIRMED without tracker attachments:
 > **screenshot(s)** of the failure state **and** an **E2E screen recording** of the reproduction.
 > Steps and expected behaviour MUST cite **OpenSpec** (REQ-/SC-) or persisted **TC** from `test-cases/`.
 >
@@ -31,11 +31,11 @@
 - **Actual**: <observed on STG — canonical source if applicable>
 - **Two-pass result**: Pass 1 (real input): FAIL / PASS · Pass 2 (automation/MCP): FAIL / PASS · discrepancy?
 
-### Jira evidence attachments (MUST before closing filing)
+### Tracker evidence attachments (MUST before closing filing)
 | Artifact | Attached? | Reference |
 |----------|-----------|-----------|
 | Screenshot (error state) | ☐ | `runs/<run>/screenshots/BUG-001-*.png` → `--attach` on create |
-| E2E recording (≤10MB) | ☐ | `record_and_attach.sh <slug> <JIRA-KEY> …` after create |
+| E2E recording (≤10MB) | ☐ | Jira: `record_and_attach.sh <slug> <BUG-KEY> …` · GitHub: `--attach` mp4 / gist on create |
 | Playwright trace / error-context | ☐ | `automation/test-results/…` (link in description) |
 
 - **Console**: <paste relevant console errors, if any>
@@ -50,7 +50,7 @@
 **Verdict**: <verdict>
 **Confidence**: high | medium | low
 
-**Jira / GitHub:** `<KEY>` — filed with `--labels <slug>,confirmed-defect` (+ `impl-dev` auto) via `create_bug_issue.py`
+**Tracker key:** `<KEY>` — filed with `--labels <slug>,confirmed-defect` (+ `impl-dev` auto) via `create_bug_issue.py`
 
 ### Root cause & class (for confirmed-defect)
 - **Root cause (mechanism-specific)**: …
