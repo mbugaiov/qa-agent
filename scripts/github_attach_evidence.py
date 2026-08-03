@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Attach a local evidence file to a GitHub Issue (repo qa-evidence branch + comment).
+"""Attach one evidence file to a GitHub Issue as an **inline GIF/PNG** comment.
 
-Uses projects/<slug>/.secrets/github.env GITHUB_TOKEN only (strips ambient GH_*).
+Videos are converted to GIF first. Media is uploaded once (Contents API raw URL)
+and the issue comment uses ``![caption](url)`` so it renders in the thread —
+not an opaque MP4 blob pack on ``qa-evidence``.
 
-Media (PNG/MP4/…) is uploaded via Contents API to branch ``qa-evidence`` so the
-blob page shows a real image/video — not a base64 ``.b64.txt`` gist.
+Do **not** push screenshot directories to the product repo; one GIF (or one PNG)
+per ticket is the contract.
 
 Usage:
     python3 scripts/github_attach_evidence.py --project projects/<slug> \\
-        --key <slug>#12 --file path/to/clip.mp4 [--caption "QA retest recording"]
+        --key <slug>#12 --file path/to/clip.mp4 [--caption "QA retest"]
 
 Exit 0 on success; 3 if project token missing; non-zero on upload/comment failure.
-Prints bug_recording_attached=true or bug_screenshot_attached=true when applicable.
+Prints bug_recording_attached=true / bug_screenshot_attached=true / recording_attached=true.
 """
 from __future__ import annotations
 
@@ -28,6 +30,7 @@ from github_create_issue import (  # noqa: E402
     _is_media_path,
     evidence_markdown_line,
     github_repo_evidence_upload,
+    prepare_github_media,
     project_gh_env,
     secret_gist_upload,
 )
@@ -62,7 +65,7 @@ def main() -> int:
     gh_env, has_token = project_gh_env(a.project)
     if a.dry_run:
         print(
-            f"DRY RUN → qa-evidence branch + comment on {a.key} "
+            f"DRY RUN → inline GIF/PNG comment on {a.key} "
             f"(project_token={'yes' if has_token else 'no'}) file={a.file}"
         )
         return 0
@@ -85,30 +88,47 @@ def main() -> int:
     owner, repo = github_repo(a.project)
     repo_ref = f"{owner}/{repo}"
     num = parse_issue_number(a.key)
-    base = os.path.basename(a.file)
+
+    try:
+        upload_path, from_video = prepare_github_media(a.file)
+    except Exception as e:
+        print(f"media prepare failed: {e}", file=sys.stderr)
+        return 1
+
+    base = os.path.basename(upload_path)
     url = github_repo_evidence_upload(
-        a.file,
+        upload_path,
         owner=owner,
         repo=repo,
         issue_key=a.key,
         message=f"{a.caption} ({a.key})",
         env=gh_env,
     )
-    if not url and not _is_media_path(a.file):
-        url = secret_gist_upload(a.file, f"{a.caption} ({a.key})", env=gh_env)
+    if not url and not _is_media_path(upload_path):
+        url = secret_gist_upload(upload_path, f"{a.caption} ({a.key})", env=gh_env)
     if not url:
-        print(f"evidence upload failed for {a.file}", file=sys.stderr)
+        print(f"evidence upload failed for {upload_path}", file=sys.stderr)
         return 1
 
     lower = base.lower()
-    if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
-        flag = "bug_screenshot_attached=true"
-    elif lower.endswith((".mp4", ".webm", ".mov", ".m4v")):
-        flag = "bug_recording_attached=true"
+    is_image = lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp"))
+    if from_video or lower.endswith(".gif"):
+        # One animated GIF satisfies both recording + screenshot DoD on GitHub.
+        flags = [
+            "bug_recording_attached=true",
+            "bug_screenshot_attached=true",
+            "recording_attached=true",
+        ]
+    elif is_image:
+        flags = ["bug_screenshot_attached=true", "evidence_attached=true"]
     else:
-        flag = "evidence_attached=true"
+        flags = ["evidence_attached=true"]
 
-    body = f"## {a.caption}\n\n{evidence_markdown_line(base, url)}\n"
+    body = (
+        f"## {a.caption}\n\n"
+        f"{evidence_markdown_line(base, url, caption=a.caption)}\n\n"
+        f"_Inline evidence (GIF/PNG). Do not open opaque repo blob packs._\n"
+    )
     r = subprocess.run(
         [
             "gh",
@@ -129,10 +149,9 @@ def main() -> int:
         print(r.stderr or r.stdout, file=sys.stderr)
         return 1
 
-    print(f"Attached {base} → {url} on {repo_ref}#{num}")
-    print(flag)
-    if flag.startswith("bug_recording"):
-        print("recording_attached=true")
+    print(f"Attached {base} → {url} on {repo_ref}#{num} (inline comment)")
+    for flag in flags:
+        print(flag)
     return 0
 
 

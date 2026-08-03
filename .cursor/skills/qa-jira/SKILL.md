@@ -155,13 +155,19 @@ Auto-set on creation (per `.secrets/jira.env`): **assignee** (`JIRA_ASSIGNEE_ACC
 
 ## Retest recording evidence (ALWAYS — FE and BE/infra)
 
-Attach a short **E2E recording** to **every** ticket you move to Done (and to every confirmed bug),
-compressed to **≤10MB**, via tracker-aware `record_and_attach.sh` (Jira attachment or GitHub secret gist):
+Attach a short **E2E recording** to **every** ticket you move to Done (and to every confirmed bug)
+via tracker-aware `record_and_attach.sh`:
+
+| Tracker | What gets posted |
+|---------|------------------|
+| **Jira** | MP4 multipart attachment (≤10MB) |
+| **GitHub Issues** | **One animated GIF** posted **inline** in an issue comment (`![…](url)`). Never dump PNG/MP4 packs onto a `qa-evidence` branch for humans to dig through. |
 
 ```
 scripts/record_and_attach.sh <slug> <KEY> <stepsJson> "<caption>"
 ```
 
+**Forbidden on GitHub factories:** committing screenshot directories / multi-file evidence trees into the product repo or linking opaque blob pages. If you need a still, attach **one** PNG the same way (`github_attach_evidence.py`) so it renders in the comment.
 The clip MUST show the **customer-side end-to-end steps** that validate the fix/feature works now — a real
 user journey in the live browser, not just a static page. Build the steps JSON accordingly (login → navigate →
 perform the user action → show the expected outcome). Records via Playwright (`record_retest.cjs`), compresses

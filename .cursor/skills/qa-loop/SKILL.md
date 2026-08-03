@@ -210,8 +210,8 @@ Arm/re-arm via `scripts/arm_qa_loop.sh <slug>` so the sleeper prompt carries the
 | 0c | Write 3–5 test steps in `run.md` from **OpenSpec + handoff** (align with persisted TC) | (run.md checklist) |
 | 1 | Two-pass retest on **canonical source** (detail / audit / API) | `retest_attempted=true`, `feature_steps_executed=true` |
 | 2 | `stg_buildid.sh` → MATCH or MATCH_AHEAD (or N/A / SKIP) | `buildid_gate` |
-| 3 | `record_and_attach.sh` → tracker (unless `recording_exempt` pure-CI) | `recording_attached=true` |
-| 3b | **Filed bugs:** screenshot `--attach` + `record_and_attach.sh` on **bug** key | `bug_screenshot_attached=true`, `bug_recording_attached=true` |
+| 3 | `record_and_attach.sh` → tracker (unless `recording_exempt` pure-CI). **GitHub:** one inline GIF comment — no evidence packs in-repo. | `recording_attached=true` |
+| 3b | **Filed bugs:** screenshot `--attach` + `record_and_attach.sh` on **bug** key (GitHub: GIF covers recording+screenshot DoD) | `bug_screenshot_attached=true`, `bug_recording_attached=true` |
 | 4 | Tracker transition + comment: **Done** if PASS; return to Dev if FAIL or blocked | `transition` event |
 
 **RETURN_DEV / FAIL** additionally require in `dod_check`: `retest_attempted=true`,
