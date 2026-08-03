@@ -41,7 +41,7 @@ class GithubCreateIssueTest(unittest.TestCase):
         self.assertNotIn("impl-dev", labels)
 
     def test_parse_related(self) -> None:
-        self.assertEqual(parse_related_number("pantheon#40"), 40)
+        self.assertEqual(parse_related_number("myapp#40"), 40)
         self.assertIsNone(parse_related_number("nope"))
 
 
