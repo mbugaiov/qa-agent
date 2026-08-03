@@ -294,7 +294,7 @@ def ticket_work_started(events, dod):
         return True
     return False
 
-def require_bug_jira_evidence(key, dod, errors):
+def require_bug_tracker_evidence(key, dod, errors):
     """When a separate bug/dev ticket was filed, evidence must be on the tracker bug."""
     bug_key = dod.get("bug_filed") or dod.get("dev_ticket")
     if not bug_key:
@@ -376,7 +376,7 @@ for key in scope_keys:
             errors.append(f"{key}: FAIL requires feature_steps_executed=true")
         if not has_transition(events) and not dod.get("transition"):
             errors.append(f"{key}: FAIL requires transition to=In Progress (V/T cannot stay open)")
-        require_bug_jira_evidence(key, dod, errors)
+        require_bug_tracker_evidence(key, dod, errors)
         require_verdict_review(key, events, dod, verdict, errors)
 
     if verdict == "RETURN_DEV":
@@ -396,7 +396,7 @@ for key in scope_keys:
             errors.append(f"{key}: RETURN_DEV requires transition to=In Progress (never leave V/T blocked)")
         if str(dod.get("jira_status", "")).lower() == "validate/testing" and not (has_transition(events) or dod.get("transition")):
             errors.append(f"{key}: RETURN_DEV — must move ticket off Validate/Testing same tick")
-        require_bug_jira_evidence(key, dod, errors)
+        require_bug_tracker_evidence(key, dod, errors)
         require_verdict_review(key, events, dod, verdict, errors)
 
     if verdict == "DONE":

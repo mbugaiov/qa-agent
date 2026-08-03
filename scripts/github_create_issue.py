@@ -311,6 +311,27 @@ def main() -> int:
         )
         for path in a.attach:
             evidence_lines.append(f"- local path (not uploaded): `{path}`")
+        # Comment paths, then fail so unattended DoD cannot treat create as evidence-complete
+        subprocess.run(
+            [
+                "gh",
+                "issue",
+                "comment",
+                str(num),
+                "-R",
+                repo_ref,
+                "--body",
+                "\n".join(evidence_lines),
+            ],
+            check=False,
+            env=gh_env,
+        )
+        print(key)
+        print(
+            "GITHUB_ATTACH_TOKEN_REQUIRED — issue created but evidence not uploaded",
+            file=sys.stderr,
+        )
+        return 3
     for path in a.attach if has_project_token else []:
         if not os.path.isfile(path):
             print(f"  ! attachment not found: {path}", file=sys.stderr)
@@ -348,7 +369,22 @@ def main() -> int:
             env=gh_env,
         )
         if attached_ok:
-            print("  bug_screenshot_attached=true (secret gist via project token)")
+            if any(
+                os.path.basename(p).lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".gif", ".webp")
+                )
+                for p in a.attach
+                if os.path.isfile(p)
+            ):
+                print("  bug_screenshot_attached=true (secret gist via project token)")
+            if any(
+                os.path.basename(p).lower().endswith(
+                    (".mp4", ".webm", ".mov", ".m4v")
+                )
+                for p in a.attach
+                if os.path.isfile(p)
+            ):
+                print("  bug_recording_attached=true (secret gist via project token)")
 
     related_num = parse_related_number(a.related_key) if a.related_key else None
     if related_num:
