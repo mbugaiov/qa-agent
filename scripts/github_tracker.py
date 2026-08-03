@@ -33,7 +33,8 @@ def load_project_yaml(project_dir: str) -> dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except Exception:
         # Minimal fallback: uncommented tracker/git keys only (ignore # comments).
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as fh:
+            text = fh.read()
         out: dict[str, Any] = {}
         active_lines = [
             ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")
@@ -56,6 +57,21 @@ def load_project_yaml(project_dir: str) -> dict[str, Any]:
                 m = re.match(r"^[ \t]+provider:\s*(\S+)", ln)
                 if m:
                     tracker["provider"] = m.group(1).strip('"')
+                m = re.match(r"^[ \t]+owner:\s*(\S+)", ln)
+                if m:
+                    tracker["owner"] = m.group(1).strip('"')
+                m = re.match(r"^[ \t]+repo:\s*(\S+)", ln)
+                if m:
+                    tracker["repo"] = m.group(1).strip('"')
+                m = re.match(r"^[ \t]+validate_label:\s*(\S+)", ln)
+                if m:
+                    tracker["validate_label"] = m.group(1).strip('"')
+                m = re.match(r"^[ \t]+pickup_label:\s*(\S+)", ln)
+                if m:
+                    tracker["pickup_label"] = m.group(1).strip('"')
+                m = re.match(r"^[ \t]+done_label:\s*(\S+)", ln)
+                if m:
+                    tracker["done_label"] = m.group(1).strip('"')
             if in_git:
                 m = re.match(r"^[ \t]+provider:\s*(\S+)", ln)
                 if m:

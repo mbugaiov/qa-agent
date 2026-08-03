@@ -65,21 +65,24 @@ if [[ "$BYTES" -lt 10240 ]]; then echo "ERROR: video too small (${BYTES} bytes);
 if [[ "$MB" -gt "$MAX_MB" ]]; then echo "ERROR: still > ${MAX_MB}MB after compression; not attaching" >&2; exit 1; fi
 
 if [[ "$PROVIDER" == "github_issues" ]]; then
-  python3 "$SCRIPT_DIR/github_attach_evidence.py" \
+  ATTACH_OUT=$(python3 "$SCRIPT_DIR/github_attach_evidence.py" \
     --project "$PROJ" \
     --key "$KEY" \
     --file "$OUT" \
-    --caption "$CAPTION" || exit $?
+    --caption "$CAPTION") || exit $?
+  echo "$ATTACH_OUT"
+  echo "$ATTACH_OUT" | grep -Eq 'recording_attached=true|bug_recording_attached=true|evidence_attached=true' \
+    || { echo "ERROR: GitHub attach soft-skipped or missing success flag" >&2; exit 1; }
   echo "Attached retest recording to $KEY (${MB}MB) via GitHub secret gist. Local copy discarded."
   exit 0
 fi
 
 # Jira multipart attach
-B="${JIRA_BASE_URL%/}"
 if [[ -z "${JIRA_BASE_URL:-}" || -z "${JIRA_EMAIL:-}" || -z "${JIRA_API_TOKEN:-}" ]]; then
   echo "Jira not configured for $SLUG — cannot attach recording" >&2
   exit 1
 fi
+B="${JIRA_BASE_URL%/}"
 HTTP=$(curl -sS -o /dev/null -w "%{http_code}" -u "$JIRA_EMAIL:$JIRA_API_TOKEN" \
   -H "X-Atlassian-Token: no-check" -F "file=@$OUT;type=video/mp4" \
   "$B/rest/api/3/issue/$KEY/attachments")

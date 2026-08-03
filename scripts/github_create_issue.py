@@ -175,7 +175,13 @@ def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | No
             stderr=subprocess.PIPE,
             env=env,
         ).strip()
-    except (OSError, subprocess.CalledProcessError):
+    except subprocess.CalledProcessError as e:
+        err = (e.stderr or e.stdout or "").strip()
+        if err:
+            print(f"secret gist upload error: {err}", file=sys.stderr)
+        return None
+    except OSError as e:
+        print(f"secret gist upload error: {e}", file=sys.stderr)
         return None
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
     return lines[-1] if lines else None

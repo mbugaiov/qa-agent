@@ -47,8 +47,8 @@ def main() -> int:
 
     repo_tuple = resolve_github_repo(a.project)
     if repo_tuple is None and not a.dry_run:
-        print(f"GitHub not configured for {a.project} — skipping.", file=sys.stderr)
-        return 0
+        print(f"GitHub owner/repo not configured for {a.project}.", file=sys.stderr)
+        return 1
 
     gh_env, has_token = project_gh_env(a.project)
     if a.dry_run:
