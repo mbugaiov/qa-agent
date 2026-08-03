@@ -15,7 +15,8 @@ Usage:
         --attach runs/<run>/screenshots/fail.png \\
         --related-key <slug>#12
 
-Exit 0 on success / inactive no-op / dedupe hit.
+Exit 0 on success / inactive no-op / dedupe hit (attach still runs on dedupe when requested).
+Exit 3 when --attach is set without a project GITHUB_TOKEN (before create — recoverable).
 Last stdout line is the issue key (<slug>#N) for capture.
 """
 from __future__ import annotations
@@ -177,6 +178,77 @@ def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | No
     return lines[-1] if lines else None
 
 
+def upload_attachments(
+    *,
+    paths: list[str],
+    key: str,
+    repo_ref: str,
+    issue_num: int,
+    env: dict[str, str],
+) -> bool:
+    """Secret-gist upload + evidence comment on an existing issue.
+
+    Caller must already enforce project-token gate. Returns True if ≥1 upload succeeded.
+    """
+    if not paths:
+        return False
+    evidence_lines: list[str] = ["## Evidence attachments", ""]
+    attached_ok = False
+    for path in paths:
+        if not os.path.isfile(path):
+            print(f"  ! attachment not found: {path}", file=sys.stderr)
+            evidence_lines.append(f"- missing: `{path}`")
+            continue
+        gist_url = secret_gist_upload(
+            path, f"qa-agent evidence for {key}", env=env
+        )
+        base = os.path.basename(path)
+        if gist_url:
+            attached_ok = True
+            lower = base.lower()
+            if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+                evidence_lines.append(f"- ![{base}]({gist_url})")
+            else:
+                evidence_lines.append(f"- [{base}]({gist_url})")
+            print(f"  attached {base} → secret gist {gist_url}")
+        else:
+            evidence_lines.append(f"- upload failed: `{path}`")
+            print(f"  ! secret gist upload failed for {path}", file=sys.stderr)
+
+    subprocess.run(
+        [
+            "gh",
+            "issue",
+            "comment",
+            str(issue_num),
+            "-R",
+            repo_ref,
+            "--body",
+            "\n".join(evidence_lines),
+        ],
+        check=False,
+        env=env,
+    )
+    if attached_ok:
+        if any(
+            os.path.basename(p).lower().endswith(
+                (".png", ".jpg", ".jpeg", ".gif", ".webp")
+            )
+            for p in paths
+            if os.path.isfile(p)
+        ):
+            print("  bug_screenshot_attached=true (secret gist via project token)")
+        if any(
+            os.path.basename(p).lower().endswith(
+                (".mp4", ".webm", ".mov", ".m4v")
+            )
+            for p in paths
+            if os.path.isfile(p)
+        ):
+            print("  bug_recording_attached=true (secret gist via project token)")
+    return attached_ok
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Create a GitHub Issue bug for a QA project")
     ap.add_argument("--project", required=True, help="path to projects/<slug>")
@@ -251,13 +323,38 @@ def main() -> int:
     repo_ref = f"{owner}/{repo}"
     gh_env, has_project_token = project_gh_env(a.project)
 
+    # Fail BEFORE create when --attach needs a project token. Creating first then
+    # exiting 3 left an orphan issue; retry after github.env hits dedupe and used
+    # to return 0 without uploading — DoD could not recover without --no-dedupe.
+    if a.attach and not has_project_token:
+        print(
+            "  ! --attach requires GITHUB_TOKEN in "
+            f"{a.project}/.secrets/github.env (project token required; ambient gh ignored)",
+            file=sys.stderr,
+        )
+        print(
+            "GITHUB_ATTACH_TOKEN_REQUIRED — refusing create until project token is set",
+            file=sys.stderr,
+        )
+        return 3
+
     if not a.no_dedupe:
         hit = find_dedupe_hit(repo_ref, a.summary, env=gh_env)
         if hit:
-            num = hit.get("number")
+            num = int(hit.get("number"))
             key = f"{slug}#{num}"
             url = hit.get("url") or f"https://github.com/{repo_ref}/issues/{num}"
             print(f"GITHUB_DEDUPE_HIT {key} → {url}")
+            # Retry path: attach evidence to the existing issue (e.g. after adding
+            # github.env, or when a prior create lacked --attach).
+            if a.attach:
+                upload_attachments(
+                    paths=a.attach,
+                    key=key,
+                    repo_ref=repo_ref,
+                    issue_num=num,
+                    env=gh_env,
+                )
             print(key)
             return 0
 
@@ -301,90 +398,14 @@ def main() -> int:
     print(f"Created {key} → {url}")
 
     # Evidence: secret gist via *project* GH_TOKEN only (never ambient-account gist mix).
-    evidence_lines: list[str] = ["## Evidence attachments", ""]
-    attached_ok = False
-    if a.attach and not has_project_token:
-        print(
-            "  ! --attach skipped upload: set GITHUB_TOKEN in "
-            f"{a.project}/.secrets/github.env (project token required; ambient gh ignored)",
-            file=sys.stderr,
-        )
-        for path in a.attach:
-            evidence_lines.append(f"- local path (not uploaded): `{path}`")
-        # Comment paths, then fail so unattended DoD cannot treat create as evidence-complete
-        subprocess.run(
-            [
-                "gh",
-                "issue",
-                "comment",
-                str(num),
-                "-R",
-                repo_ref,
-                "--body",
-                "\n".join(evidence_lines),
-            ],
-            check=False,
-            env=gh_env,
-        )
-        print(key)
-        print(
-            "GITHUB_ATTACH_TOKEN_REQUIRED — issue created but evidence not uploaded",
-            file=sys.stderr,
-        )
-        return 3
-    for path in a.attach if has_project_token else []:
-        if not os.path.isfile(path):
-            print(f"  ! attachment not found: {path}", file=sys.stderr)
-            evidence_lines.append(f"- missing: `{path}`")
-            continue
-        gist_url = secret_gist_upload(
-            path, f"qa-agent evidence for {key}", env=gh_env
-        )
-        base = os.path.basename(path)
-        if gist_url:
-            attached_ok = True
-            lower = base.lower()
-            if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
-                evidence_lines.append(f"- ![{base}]({gist_url})")
-            else:
-                evidence_lines.append(f"- [{base}]({gist_url})")
-            print(f"  attached {base} → secret gist {gist_url}")
-        else:
-            evidence_lines.append(f"- upload failed: `{path}`")
-            print(f"  ! secret gist upload failed for {path}", file=sys.stderr)
-
     if a.attach:
-        subprocess.run(
-            [
-                "gh",
-                "issue",
-                "comment",
-                str(num),
-                "-R",
-                repo_ref,
-                "--body",
-                "\n".join(evidence_lines),
-            ],
-            check=False,
+        upload_attachments(
+            paths=a.attach,
+            key=key,
+            repo_ref=repo_ref,
+            issue_num=num,
             env=gh_env,
         )
-        if attached_ok:
-            if any(
-                os.path.basename(p).lower().endswith(
-                    (".png", ".jpg", ".jpeg", ".gif", ".webp")
-                )
-                for p in a.attach
-                if os.path.isfile(p)
-            ):
-                print("  bug_screenshot_attached=true (secret gist via project token)")
-            if any(
-                os.path.basename(p).lower().endswith(
-                    (".mp4", ".webm", ".mov", ".m4v")
-                )
-                for p in a.attach
-                if os.path.isfile(p)
-            ):
-                print("  bug_recording_attached=true (secret gist via project token)")
 
     related_num = parse_related_number(a.related_key) if a.related_key else None
     if related_num:

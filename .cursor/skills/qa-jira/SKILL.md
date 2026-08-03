@@ -15,8 +15,10 @@ No shared/global config; ambient env ignored.
 **GitHub credentials:** `projects/<slug>/.secrets/github.env` (`GITHUB_TOKEN` / `GH_TOKEN`).
 When set, `github_create_issue.py` strips ambient `GH_TOKEN`/`GITHUB_TOKEN` for its
 subprocesses and uses the project token — required for `--attach` (secret gist upload).
-Without a project token, issue create may still use the local `gh` login, but `--attach`
-upload is refused (isolation). Copy `github.env.example` → `github.env`.
+Without a project token, `--attach` exits `3` (`GITHUB_ATTACH_TOKEN_REQUIRED`) *before*
+`gh issue create` (isolation; ambient `gh` login is never used for evidence). On a
+dedupe hit with `--attach` + project token, evidence is still uploaded to the existing
+issue. Copy `github.env.example` → `github.env`.
 
 **Jira gate:** if `scripts/jira_status.sh <slug>` is `inactive` and the project is Jira-backed,
 **skip ALL Jira work** — local QA + `run.md` only. `create_jira_issue.py` no-ops when unconfigured.

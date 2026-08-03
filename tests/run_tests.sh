@@ -908,6 +908,8 @@ echo "$DRY" | grep -q '"impl-dev"' && ok "github_create_issue confirmed-defect a
   || no "github_create_issue should add impl-dev (got: $DRY)"
 echo "$DRY" | grep -qi "dedupe" && ok "github_create_issue dry-run mentions dedupe" \
   || no "github_create_issue dry-run should mention dedupe"
+echo "$DRY" | grep -qi "attach_requires_project_token" && ok "github_create_issue dry-run flags attach token gate" \
+  || no "github_create_issue dry-run should mention attach_requires_project_token"
 # Router: github_issues project → github_create_issue
 ROUTE=$(python3 scripts/create_bug_issue.py --project "projects/$GH_SLUG" --summary "t" --description "d" --severity S3 --labels confirmed-defect --dry-run 2>&1)
 echo "$ROUTE" | grep -qi "github_create_issue" && ok "create_bug_issue routes to github" \
