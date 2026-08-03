@@ -22,7 +22,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 from github_create_issue import project_gh_env, secret_gist_upload  # noqa: E402
-from github_tracker import github_inactive, github_repo  # noqa: E402
+from github_tracker import github_inactive, github_repo, resolve_github_repo  # noqa: E402
 
 
 def parse_issue_number(key: str) -> int:
@@ -45,7 +45,8 @@ def main() -> int:
         print(f"Missing file: {a.file}", file=sys.stderr)
         return 1
 
-    if github_inactive(a.project) and not a.dry_run:
+    repo_tuple = resolve_github_repo(a.project)
+    if repo_tuple is None and not a.dry_run:
         print(f"GitHub not configured for {a.project} — skipping.", file=sys.stderr)
         return 0
 
@@ -57,6 +58,8 @@ def main() -> int:
         )
         return 0
 
+    # Isolation: require project token whenever a repo is configured (do not
+    # soft-skip via github_inactive / missing gh — that masked CI token gates).
     if not has_token:
         print(
             "GITHUB_ATTACH_TOKEN_REQUIRED — set GITHUB_TOKEN in "
@@ -64,6 +67,13 @@ def main() -> int:
             file=sys.stderr,
         )
         return 3
+
+    if github_inactive(a.project):
+        print(
+            f"GitHub CLI unavailable for {a.project} — cannot attach.",
+            file=sys.stderr,
+        )
+        return 1
 
     owner, repo = github_repo(a.project)
     repo_ref = f"{owner}/{repo}"
