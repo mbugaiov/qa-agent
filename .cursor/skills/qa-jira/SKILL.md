@@ -14,7 +14,8 @@ No shared/global config; ambient env ignored.
 
 **GitHub credentials:** `projects/<slug>/.secrets/github.env` (`GITHUB_TOKEN` / `GH_TOKEN`).
 When set, `github_create_issue.py` strips ambient `GH_TOKEN`/`GITHUB_TOKEN` for its
-subprocesses and uses the project token — required for `--attach` (secret gist upload).
+subprocesses and uses the project token — required for `--attach` (inline GIF/PNG comment via
+Contents API raw URL; text-only may fall back to secret gist).
 Without a project token, issue create may still use the local `gh` login, but `--attach`
 upload is refused (isolation). Copy `github.env.example` → `github.env`.
 
