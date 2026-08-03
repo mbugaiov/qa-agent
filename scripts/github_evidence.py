@@ -270,7 +270,6 @@ def build_evidence_markdown(
     if lower.endswith(VIDEO_EXT):
         lines = [f"## {caption}", "", "### Preview (inline)", ""]
         frames = extract_video_preview_frames(path)
-        frame_ok = 0
         for i, frame in enumerate(frames, start=1):
             furl = repo_evidence_upload(
                 frame,
@@ -285,7 +284,6 @@ def build_evidence_markdown(
             except OSError:
                 pass
             if furl:
-                frame_ok += 1
                 lines.append(f"![preview {i}]({furl})")
                 lines.append("")
         # Best-effort cleanup of frame temp dir
@@ -296,14 +294,14 @@ def build_evidence_markdown(
         vurl = repo_evidence_upload(
             path, owner=owner, repo=repo, issue_key=issue_key, env=env
         )
-        if not vurl and frame_ok == 0:
+        # Recording attach succeeds only when the mp4 lands. Preview frames are
+        # optional; returning bug_recording_attached without vurl would let
+        # record_and_attach.sh delete the local clip while DoD still sees success.
+        if not vurl:
             return None
         lines.append("### Full recording")
         lines.append("")
-        if vurl:
-            lines.append(f"- [{base}]({vurl}) — open on GitHub to download / play")
-        else:
-            lines.append(f"- _(mp4 upload failed; {frame_ok} preview frame(s) attached)_")
+        lines.append(f"- [{base}]({vurl}) — open on GitHub to download / play")
         lines.append("")
         return "\n".join(lines), "bug_recording_attached=true"
 

@@ -945,6 +945,61 @@ grep_ok "qa-evidence\|build_evidence_markdown" scripts/github_attach_evidence.py
   "github_attach_evidence embeds viewable media (not opaque base64 gist)"
 grep_ok "Preview \(inline\)\|extract_video_preview" scripts/github_evidence.py \
   "video evidence includes inline preview frames"
+# mp4 must succeed for bug_recording_attached — frames alone must not fake success
+# (otherwise record_and_attach EXIT trap deletes the local clip while DoD sees attach)
+python3 - <<'PY' && ok "video evidence requires mp4 upload (not frames-only)" || no "video evidence must return None when mp4 upload fails"
+import os, sys, tempfile
+sys.path.insert(0, "scripts")
+import github_evidence as ge
+
+fd, mp4 = tempfile.mkstemp(suffix=".mp4")
+os.write(fd, b"\x00" * 64)
+os.close(fd)
+framedir = tempfile.mkdtemp(prefix="qa-ev-test-")
+png = os.path.join(framedir, "preview-01.png")
+with open(png, "wb") as f:
+    f.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
+
+def upload_frames_ok_mp4_fail(path, **kwargs):
+    if str(path).lower().endswith((".mp4", ".webm", ".mov", ".m4v")):
+        return None
+    return f"https://example.test/raw/sha/{os.path.basename(path)}"
+
+try:
+    ge.repo_evidence_upload = upload_frames_ok_mp4_fail
+    ge.extract_video_preview_frames = lambda video_path, count=4: []
+    assert ge.build_evidence_markdown(
+        mp4, owner="o", repo="r", issue_key="s#1", caption="Rec", env={}
+    ) is None
+
+    # Recreate frame if prior path removed it (shouldn't with empty list)
+    if not os.path.isfile(png):
+        with open(png, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
+    ge.extract_video_preview_frames = lambda video_path, count=4: [png]
+    assert ge.build_evidence_markdown(
+        mp4, owner="o", repo="r", issue_key="s#1", caption="Rec", env={}
+    ) is None
+
+    ge.repo_evidence_upload = lambda path, **kwargs: (
+        f"https://example.test/raw/sha/{os.path.basename(path)}"
+    )
+    ge.extract_video_preview_frames = lambda video_path, count=4: []
+    built = ge.build_evidence_markdown(
+        mp4, owner="o", repo="r", issue_key="s#1", caption="Rec", env={}
+    )
+    assert built is not None
+    body, flag = built
+    assert flag == "bug_recording_attached=true"
+    assert "example.test" in body
+finally:
+    try:
+        os.unlink(mp4)
+    except OSError:
+        pass
+    import shutil
+    shutil.rmtree(framedir, ignore_errors=True)
+PY
 DRY=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --comment "pass" --dry-run 2>&1)
 echo "$DRY" | grep -qi "dry-run" && ok "github_close_issue dry-run" || no "github_close_issue dry-run"
 DRY=$(python3 scripts/github_return_to_dev.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --reason "x" --steps-tried "- y" --dry-run 2>&1)
