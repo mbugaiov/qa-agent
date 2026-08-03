@@ -43,6 +43,11 @@ def main() -> int:
     ap.add_argument("--to", default="Done", help="Target status name")
     ap.add_argument("--comment", required=True)
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--allow-missing-verdict-review",
+        action="store_true",
+        help="Escape hatch only — do not use in normal factory ticks",
+    )
     a = ap.parse_args()
 
     cfg = load_env_file(os.path.join(a.project, ".secrets", "jira.env"))
@@ -52,6 +57,17 @@ def main() -> int:
     if base in PLACEHOLDER or email in PLACEHOLDER or token in PLACEHOLDER or not (base and email and token):
         print(f"Jira not configured for {a.project} — skipping (no-op).")
         return 0
+
+    # Live Jira close: engine feature must be used by the project ledger.
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from verdict_review_require import require_verdict_review_pass  # noqa: E402
+
+    if not a.dry_run:
+        require_verdict_review_pass(
+            a.project,
+            a.key,
+            allow_missing=a.allow_missing_verdict_review,
+        )
 
     base = base.rstrip("/")
     auth = HTTPBasicAuth(email, token)

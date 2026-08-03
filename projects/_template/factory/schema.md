@@ -126,10 +126,19 @@ work is incomplete — continue the same tick until terminal verdict.
 ### Example (ticket closed Done)
 
 ```bash
+# Skill qa-verdict-review (critique — not a third browser pass):
+bash scripts/check_verdict_review.sh projects/<slug>/runs/<run>/verdict-review-ABC-1.md
+./scripts/factory_log.sh <slug> ABC-1 verdict_review result=pass \
+  artifact=runs/<run>/verdict-review-ABC-1.md
 ./scripts/factory_log.sh <slug> ABC-1 dod_check \
   verdict=DONE two_pass=true canonical_source=true \
-  buildid_gate=MATCH recording_attached=true
+  buildid_gate=MATCH recording_attached=true \
+  retest_attempted=true feature_steps_executed=true openspec_read=true \
+  verdict_review=pass
 ./scripts/factory_log.sh <slug> ABC-1 recording_attached caption="Feature verified E2E"
+# Close scripts refuse without ledger verdict_review=pass:
+python3 scripts/jira_close_issue.py --project projects/<slug> --key ABC-1 \
+  --to Done --comment "QA PASS"
 ./scripts/factory_log.sh <slug> ABC-1 transition to=Done
 ```
 
@@ -137,13 +146,18 @@ work is incomplete — continue the same tick until terminal verdict.
 
 ```bash
 ./scripts/jira_handoff.sh <slug> ABC-2 --log
+bash scripts/check_verdict_review.sh projects/<slug>/runs/<run>/verdict-review-ABC-2.md
+./scripts/factory_log.sh <slug> ABC-2 verdict_review result=pass \
+  artifact=runs/<run>/verdict-review-ABC-2.md
+./scripts/factory_log.sh <slug> ABC-2 dod_check \
+  verdict=RETURN_DEV dev_ticket=ABC-9 transition=In\ Progress \
+  retest_attempted=true alternate_locators_tried=true feature_steps_executed=true \
+  openspec_read=true openspec_req=REQ-… verdict_review=pass \
+  bug_filed=ABC-9 bug_recording_attached=true bug_screenshot_attached=true
 python3 scripts/jira_return_in_progress.py --project projects/<slug> --key ABC-2 \
   --reason "Automation cannot reach required control" --dev-ticket ABC-9 \
   --steps-tried "1. handoff read 2. test_data_prep 3. primary flow 4. alt locators"
 ./scripts/factory_log.sh <slug> ABC-2 transition to=In\ Progress reason="locator gap"
-./scripts/factory_log.sh <slug> ABC-2 dod_check \
-  verdict=RETURN_DEV dev_ticket=ABC-9 transition=In\ Progress \
-  retest_attempted=true alternate_locators_tried=true feature_steps_executed=true
 ```
 
 ### Example (impl-qa charter — slice mode continue)
@@ -200,9 +214,11 @@ eval "$(./scripts/jira_scope.sh <slug> --log --shell)"   # mandatory scope_check
 # If count>0 → handoff + tc persist + dod_check per key before gate:
 ./scripts/jira_handoff.sh <slug> RQ-1 --log
 ./scripts/ticket_tc.sh <slug> RQ-1 --title "…" --log
+./scripts/factory_log.sh <slug> RQ-1 verdict_review result=pass artifact=runs/<run>/verdict-review-RQ-1.md
 ./scripts/factory_log.sh <slug> RQ-1 dod_check \
   verdict=DONE two_pass=true canonical_source=true \
-  buildid_gate=MATCH recording_attached=true retest_attempted=true feature_steps_executed=true
+  buildid_gate=MATCH recording_attached=true retest_attempted=true feature_steps_executed=true \
+  openspec_read=true verdict_review=pass
 ./scripts/factory_tick_gate.sh <slug>
 ./scripts/factory_log.sh <slug> _loop exploratory area="…" result=PASS
 ./scripts/factory_log.sh <slug> _loop tick_end run=<run-id> gate=open

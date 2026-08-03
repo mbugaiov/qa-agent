@@ -51,6 +51,11 @@ def main() -> int:
     ap.add_argument("--attach", action="append", default=[], help="Evidence file(s)")
     ap.add_argument("--target-status", default="In Progress")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--allow-missing-verdict-review",
+        action="store_true",
+        help="Escape hatch only — do not use in normal factory ticks",
+    )
     a = ap.parse_args()
 
     cfg = load_env_file(os.path.join(a.project, ".secrets", "jira.env"))
@@ -60,6 +65,16 @@ def main() -> int:
     if base in PLACEHOLDER or email in PLACEHOLDER or token in PLACEHOLDER or not (base and email and token):
         print(f"Jira not configured for {a.project} — skipping return (no-op).")
         return 0
+
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+    from verdict_review_require import require_verdict_review_pass  # noqa: E402
+
+    if not a.dry_run:
+        require_verdict_review_pass(
+            a.project,
+            a.key,
+            allow_missing=a.allow_missing_verdict_review,
+        )
 
     base = base.rstrip("/")
     auth = HTTPBasicAuth(email, token)
@@ -81,7 +96,6 @@ def main() -> int:
         print(f"[dry-run] comment ({len(body)} chars): {body[:800]}…" if len(body) > 800 else f"[dry-run] comment: {body}")
         return 0
 
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
     from jira_adf import adf_from_text
 
     c = requests.post(

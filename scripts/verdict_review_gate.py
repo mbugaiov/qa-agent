@@ -39,7 +39,8 @@ def verdict_review_has_blockers(text: str) -> bool:
     section = extract_blocking_gaps(text)
     if section is None:
         return True
-    if re.match(r"^None\.?\s*$", section, re.I):
+    # Accept "None." / "- None." / "* None" (agents often bullet the empty list)
+    if re.match(r"^(?:[-*]|\d+\.)?\s*None\.?\s*$", section, re.I):
         return False
     if not section:
         return True

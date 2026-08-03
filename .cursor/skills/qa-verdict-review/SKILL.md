@@ -62,6 +62,12 @@ Gate: `bash scripts/check_verdict_review.sh <path>` must exit 0.
 
 `factory_tick_gate.sh` requires pass for `DONE` / `FAIL` / `RETURN_DEV`.
 
+**Hard close gate (projects must use the engine):** live
+`jira_close_issue.py` / `github_close_issue.py` /
+`jira_return_in_progress.py` / `github_return_to_dev.py` exit **4** unless the
+ticket ledger already has `verdict_review=pass` (or a `verdict_review` event with
+`result=pass`). `--allow-missing-verdict-review` is escape-hatch only.
+
 ## If Blocking gaps non-empty
 
 1. Fix execution / evidence / handoff in the **same tick**.
