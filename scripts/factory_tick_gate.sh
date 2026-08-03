@@ -295,19 +295,19 @@ def ticket_work_started(events, dod):
     return False
 
 def require_bug_jira_evidence(key, dod, errors):
-    """When a separate bug/dev ticket was filed, evidence must be on Jira."""
+    """When a separate bug/dev ticket was filed, evidence must be on the tracker bug."""
     bug_key = dod.get("bug_filed") or dod.get("dev_ticket")
     if not bug_key:
         return
     if str(dod.get("bug_recording_attached", "")).lower() not in ("true", "1", "yes"):
         errors.append(
             f"{key}: bug {bug_key} requires bug_recording_attached=true "
-            f"(record_and_attach.sh on the Jira issue)"
+            f"(record_and_attach.sh on Jira bug key, or github_create_issue --attach/gist)"
         )
     if str(dod.get("bug_screenshot_attached", "")).lower() not in ("true", "1", "yes"):
         errors.append(
             f"{key}: bug {bug_key} requires bug_screenshot_attached=true "
-            f"(create_jira_issue.py / github_create_issue.py --attach screenshot)"
+            f"(create_bug_issue.py / create_jira_issue.py / github_create_issue.py --attach)"
         )
     if not dod.get("openspec_req") and not dod.get("openspec_scenario"):
         errors.append(

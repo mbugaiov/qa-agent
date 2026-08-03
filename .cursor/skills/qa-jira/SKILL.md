@@ -1,17 +1,23 @@
 ---
 name: qa-jira
-description: Per-project Jira integration for the QA Agent — strict isolation, the active/inactive gate, onboarding (jira_discover), filing bugs with assignee/story-points/estimate/sprint/epic, attaching ≤10MB retest recordings, and the L5 UNATTENDED Validate/Testing→Done workflow (auto-accept with STG buildId gate, auto-file confirmed bugs, auto-reopen regressions; needs-human is the only stop). Use before any Jira action (file/transition/comment/recording/reopen).
+description: Per-project tracker integration for the QA Agent (Jira or GitHub Issues) — isolation, filing bugs via create_bug_issue.py, recordings/evidence, and L5 unattended Validate/Testing→Done (auto-accept, auto-file confirmed bugs, auto-reopen; needs-human is the only stop). Use before any tracker create/close/return/comment/recording.
 ---
 
-# Jira integration (per-project, optional)
+# Tracker integration (Jira or GitHub Issues)
 
-**Strict per-project isolation.** Each project's Jira connection + field ids live ONLY in its own
-`projects/<slug>/.secrets/jira.env`. No shared/global config; scripts read the project's file exclusively
-(ambient env ignored) — project A can never pull project B's settings. A without Jira details runs Jira-free.
+**Strict per-project isolation.** Each project's tracker credentials live ONLY in its own
+`projects/<slug>/.secrets/` (`jira.env` and/or `github.env` + `project.yaml` tracker block).
+No shared/global config; ambient env ignored.
 
-**Gate first — no Jira details ⇒ do nothing with Jira.** Before any Jira action run
-`scripts/jira_status.sh <slug>`. If `inactive` (no `.secrets/jira.env`, or placeholder fields), **skip ALL
-Jira work** — just local QA + `run.md`. `create_jira_issue.py` is itself a no-op (not an error) when unconfigured.
+**Route filing through `create_bug_issue.py`** — it selects `create_jira_issue.py` or
+`github_create_issue.py` from `tracker.provider`. GitHub evidence uses `--attach` (gist upload);
+prefer a single-tenant `gh` login per host so gists do not mix customers.
+
+**Jira gate:** if `scripts/jira_status.sh <slug>` is `inactive` and the project is Jira-backed,
+**skip ALL Jira work** — local QA + `run.md` only. `create_jira_issue.py` no-ops when unconfigured.
+
+**GitHub gate:** if `tracker.provider: github_issues` but owner/repo/`gh` missing, GitHub scripts
+no-op or exit inactive (same offline-safe contract as `github_scope.py`).
 
 `projects/<slug>/.secrets/jira.env` (copy from `jira.env.example`):
 
