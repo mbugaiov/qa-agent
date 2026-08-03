@@ -5,6 +5,21 @@ name: "<Project Name>"
 slug: "<slug>"
 base_url: https://staging.example.com
 
+# Optional — machine-readable tech stack for agents (fill per app).
+# Narrative detail usually lives in the app repo AGENTS.md / README.
+# stack:
+#   language: TypeScript
+#   framework: Next.js 15 + React 19
+#   styling: Tailwind CSS
+#   tests: playwright | vitest | jest
+#   gate: npm run gate:mr
+#   ci: github-actions | bitbucket-pipelines
+#   deploy: "hosting notes"
+#   stg_url: https://staging.example.com
+#   tracker: jira | github_issues
+#   notes: >
+#     Anything agents must know before coding or testing.
+
 environment:
   type: staging            # staging | production | local
   notes: >
