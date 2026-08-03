@@ -5,7 +5,7 @@ Mirrors create_jira_issue.py for non-Jira trackers:
   - labels: qa-agent + caller labels; severity-sN; confirmed-defect → impl-dev
   - dedupe open issues by normalized title (default on)
   - optional --related-key comment on the feature ticket
-  - --attach uploads via gist + evidence comment (screenshots/recordings)
+  - --attach uploads secret gist via project GITHUB_TOKEN (never ambient-account mix)
 
 Usage:
     python3 scripts/github_create_issue.py --project projects/<slug> \\
@@ -34,6 +34,7 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from github_tracker import (  # noqa: E402
     github_inactive,
     github_repo,
+    load_env_file,
     pickup_label,
 )
 
@@ -74,8 +75,32 @@ def parse_related_number(key: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def project_gh_env(project_dir: str) -> tuple[dict[str, str], bool]:
+    """Build env for gh subprocesses.
+
+    When projects/<slug>/.secrets/github.env has GITHUB_TOKEN|GH_TOKEN, strip ambient
+    GH_* tokens and inject the project token (per-tenant isolation for evidence upload).
+    """
+    secrets = load_env_file(os.path.join(project_dir, ".secrets", "github.env"))
+    token = (secrets.get("GITHUB_TOKEN") or secrets.get("GH_TOKEN") or "").strip()
+    if token:
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN")
+        }
+        env["GH_TOKEN"] = token
+        env["GITHUB_TOKEN"] = token
+        return env, True
+    return dict(os.environ), False
+
+
 def find_dedupe_hit(
-    repo_ref: str, summary: str, *, label_filter: str | None = "confirmed-defect"
+    repo_ref: str,
+    summary: str,
+    *,
+    env: dict[str, str],
+    label_filter: str | None = "confirmed-defect",
 ) -> dict[str, Any] | None:
     """Return first open issue with the same normalized title (optional label filter)."""
     want = normalize_title(summary)
@@ -97,7 +122,7 @@ def find_dedupe_hit(
     if label_filter:
         cmd.extend(["--label", label_filter])
     try:
-        raw = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL)
+        raw = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL, env=env)
     except (OSError, subprocess.CalledProcessError):
         return None
     try:
@@ -107,16 +132,13 @@ def find_dedupe_hit(
     for it in items:
         if normalize_title(str(it.get("title") or "")) == want:
             return it
-    # Fallback: search without label filter (title-only collision)
     if label_filter:
-        return find_dedupe_hit(repo_ref, summary, label_filter=None)
+        return find_dedupe_hit(repo_ref, summary, env=env, label_filter=None)
     return None
 
 
-def ensure_labels_exist(repo_ref: str, labels: list[str]) -> None:
-    """Best-effort create missing labels so gh issue create does not fail."""
+def ensure_labels_exist(repo_ref: str, labels: list[str], *, env: dict[str, str]) -> None:
     for name in labels:
-        # Ignore failures (label exists / no permission) — create will surface hard errors.
         subprocess.run(
             [
                 "gh",
@@ -134,21 +156,23 @@ def ensure_labels_exist(repo_ref: str, labels: list[str]) -> None:
             check=False,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
+            env=env,
         )
 
 
-def gist_upload(path: str, desc: str) -> str | None:
+def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | None:
+    """Upload evidence as a *secret* gist using the project GH_TOKEN env only."""
     if not os.path.isfile(path):
         return None
     try:
         out = subprocess.check_output(
-            ["gh", "gist", "create", path, "--desc", desc[:80]],
+            ["gh", "gist", "create", "--secret", path, "--desc", desc[:80]],
             text=True,
             stderr=subprocess.DEVNULL,
+            env=env,
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         return None
-    # Last non-empty line is usually the gist URL
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
     return lines[-1] if lines else None
 
@@ -214,6 +238,7 @@ def main() -> int:
                 "attach": a.attach,
                 "related_key": a.related_key or None,
                 "dedupe": not a.no_dedupe,
+                "attach_requires_project_token": True,
             },
             indent=2,
             ensure_ascii=False,
@@ -224,9 +249,10 @@ def main() -> int:
 
     owner, repo = github_repo(a.project)
     repo_ref = f"{owner}/{repo}"
+    gh_env, has_project_token = project_gh_env(a.project)
 
     if not a.no_dedupe:
-        hit = find_dedupe_hit(repo_ref, a.summary)
+        hit = find_dedupe_hit(repo_ref, a.summary, env=gh_env)
         if hit:
             num = hit.get("number")
             key = f"{slug}#{num}"
@@ -235,7 +261,7 @@ def main() -> int:
             print(key)
             return 0
 
-    ensure_labels_exist(repo_ref, labels)
+    ensure_labels_exist(repo_ref, labels, env=gh_env)
 
     cmd = [
         "gh",
@@ -252,7 +278,9 @@ def main() -> int:
         cmd.extend(["--label", lab])
 
     try:
-        created = subprocess.check_output(cmd, text=True, stderr=subprocess.PIPE).strip()
+        created = subprocess.check_output(
+            cmd, text=True, stderr=subprocess.PIPE, env=gh_env
+        ).strip()
     except subprocess.CalledProcessError as e:
         print(
             f"GitHub create failed:\n{e.stderr or e.stdout or e}",
@@ -272,15 +300,25 @@ def main() -> int:
     url = created if created.startswith("http") else f"https://github.com/{repo_ref}/issues/{num}"
     print(f"Created {key} → {url}")
 
-    # Evidence attachments via gist + comment
+    # Evidence: secret gist via *project* GH_TOKEN only (never ambient-account gist mix).
     evidence_lines: list[str] = ["## Evidence attachments", ""]
     attached_ok = False
-    for path in a.attach:
+    if a.attach and not has_project_token:
+        print(
+            "  ! --attach skipped upload: set GITHUB_TOKEN in "
+            f"{a.project}/.secrets/github.env (project token required; ambient gh ignored)",
+            file=sys.stderr,
+        )
+        for path in a.attach:
+            evidence_lines.append(f"- local path (not uploaded): `{path}`")
+    for path in a.attach if has_project_token else []:
         if not os.path.isfile(path):
             print(f"  ! attachment not found: {path}", file=sys.stderr)
             evidence_lines.append(f"- missing: `{path}`")
             continue
-        gist_url = gist_upload(path, f"qa-agent evidence for {key}")
+        gist_url = secret_gist_upload(
+            path, f"qa-agent evidence for {key}", env=gh_env
+        )
         base = os.path.basename(path)
         if gist_url:
             attached_ok = True
@@ -289,10 +327,10 @@ def main() -> int:
                 evidence_lines.append(f"- ![{base}]({gist_url})")
             else:
                 evidence_lines.append(f"- [{base}]({gist_url})")
-            print(f"  attached {base} → gist {gist_url}")
+            print(f"  attached {base} → secret gist {gist_url}")
         else:
-            evidence_lines.append(f"- local only (gist upload failed): `{path}`")
-            print(f"  ! gist upload failed for {path}", file=sys.stderr)
+            evidence_lines.append(f"- upload failed: `{path}`")
+            print(f"  ! secret gist upload failed for {path}", file=sys.stderr)
 
     if a.attach:
         subprocess.run(
@@ -307,9 +345,10 @@ def main() -> int:
                 "\n".join(evidence_lines),
             ],
             check=False,
+            env=gh_env,
         )
         if attached_ok:
-            print("  bug_screenshot_attached=true (gist)")
+            print("  bug_screenshot_attached=true (secret gist via project token)")
 
     related_num = parse_related_number(a.related_key) if a.related_key else None
     if related_num:
@@ -332,6 +371,7 @@ def main() -> int:
                 body,
             ],
             check=False,
+            env=gh_env,
         )
         print(f"  related comment → #{related_num}")
 

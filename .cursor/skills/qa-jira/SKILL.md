@@ -10,8 +10,13 @@ description: Per-project tracker integration for the QA Agent (Jira or GitHub Is
 No shared/global config; ambient env ignored.
 
 **Route filing through `create_bug_issue.py`** — it selects `create_jira_issue.py` or
-`github_create_issue.py` from `tracker.provider`. GitHub evidence uses `--attach` (gist upload);
-prefer a single-tenant `gh` login per host so gists do not mix customers.
+`github_create_issue.py` from `tracker.provider`.
+
+**GitHub credentials:** `projects/<slug>/.secrets/github.env` (`GITHUB_TOKEN` / `GH_TOKEN`).
+When set, `github_create_issue.py` strips ambient `GH_TOKEN`/`GITHUB_TOKEN` for its
+subprocesses and uses the project token — required for `--attach` (secret gist upload).
+Without a project token, issue create may still use the local `gh` login, but `--attach`
+upload is refused (isolation). Copy `github.env.example` → `github.env`.
 
 **Jira gate:** if `scripts/jira_status.sh <slug>` is `inactive` and the project is Jira-backed,
 **skip ALL Jira work** — local QA + `run.md` only. `create_jira_issue.py` no-ops when unconfigured.

@@ -14,7 +14,7 @@ custom REST wrapper (leanest) > CLI with terse flags > MCP (chattiest). Reach fo
 - Descriptions/comments are ADF — flatten to text and slice (`[:N]`); don't dump the ADF tree or full threads.
 - Writes (comment/transition/attach): print a **one-line** result (`comment 201 | ->Done 204`), not the response body.
 - Dedup/search with JQL that returns keys only.
-- Wrappers to reuse: `create_jira_issue.py`, `reopen_regression.py`, `jira_discover.py`, `jira_status.sh`.
+- Wrappers to reuse: `create_bug_issue.py`, `create_jira_issue.py`, `github_create_issue.py`, `reopen_regression.py`, `jira_discover.py`, `jira_status.sh`.
 
 ## Bitbucket & MCP
 - Prefer **local git** for diffs/commits/file contents (see below) — no API payload in context.
