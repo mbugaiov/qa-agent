@@ -35,7 +35,7 @@
 | Artifact | Attached? | Reference |
 |----------|-----------|-----------|
 | Screenshot (error state) | ☐ | `runs/<run>/screenshots/BUG-001-*.png` → `--attach` on create |
-| E2E recording (≤10MB) | ☐ | Jira: `record_and_attach.sh <slug> <BUG-KEY> …` · GitHub: `--attach` mp4 / gist on create |
+| E2E recording (≤10MB) | ☐ | `record_and_attach.sh <slug> <BUG-KEY> …` (Jira or GitHub) |
 | Playwright trace / error-context | ☐ | `automation/test-results/…` (link in description) |
 
 - **Console**: <paste relevant console errors, if any>
