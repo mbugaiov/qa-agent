@@ -5,7 +5,8 @@ Mirrors create_jira_issue.py for non-Jira trackers:
   - labels: qa-agent + caller labels; severity-sN; confirmed-defect → impl-dev
   - dedupe open issues by normalized title (default on)
   - optional --related-key comment on the feature ticket
-  - --attach uploads secret gist via project GITHUB_TOKEN (never ambient-account mix)
+  - --attach uploads real media to branch qa-evidence (Contents API) via project
+    GITHUB_TOKEN; text-only may still use secret gist. Never ambient-account mix.
 
 Usage:
     python3 scripts/github_create_issue.py --project projects/<slug> \\
@@ -160,47 +161,218 @@ def ensure_labels_exist(repo_ref: str, labels: list[str], *, env: dict[str, str]
         )
 
 
-def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | None:
-    """Upload evidence as a *secret* gist using the project GH_TOKEN env only.
+EVIDENCE_BRANCH = "qa-evidence"
+_MEDIA_SUFFIXES = (
+    ".mp4",
+    ".webm",
+    ".mov",
+    ".m4v",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".webp",
+    ".pdf",
+)
 
-    Current `gh gist create` defaults to secret; `--secret` was removed (use `--public`
-    only when deliberately sharing). Never pass `--public` for QA evidence.
 
-    `gh gist create` rejects binary payloads — wrap non-text evidence as
-    ``<basename>.b64.txt`` (matches prior pantheon QA gists).
+def _is_media_path(path: str) -> bool:
+    lower = path.lower()
+    if lower.endswith(_MEDIA_SUFFIXES):
+        return True
+    try:
+        with open(path, "rb") as fh:
+            fh.read(4096).decode("utf-8")
+    except UnicodeDecodeError:
+        return True
+    except OSError:
+        return False
+    return False
+
+
+def _safe_evidence_dir(issue_key: str) -> str:
+    """pantheon#71 → pantheon-71"""
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", (issue_key or "evidence").strip()).strip("-") or "evidence"
+
+
+def ensure_evidence_branch(
+    owner: str, repo: str, *, env: dict[str, str], branch: str = EVIDENCE_BRANCH
+) -> bool:
+    """Create orphan-ish qa-evidence branch from default HEAD if missing."""
+    repo_ref = f"{owner}/{repo}"
+    ref = f"repos/{repo_ref}/git/ref/heads/{branch}"
+    probe = subprocess.run(
+        ["gh", "api", ref],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if probe.returncode == 0:
+        return True
+    meta = subprocess.run(
+        ["gh", "api", f"repos/{repo_ref}", "--jq", ".default_branch"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if meta.returncode != 0:
+        print(f"evidence branch: cannot read default_branch: {meta.stderr}", file=sys.stderr)
+        return False
+    default_branch = (meta.stdout or "").strip() or "main"
+    sha_r = subprocess.run(
+        ["gh", "api", f"repos/{repo_ref}/git/ref/heads/{default_branch}", "--jq", ".object.sha"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if sha_r.returncode != 0:
+        print(f"evidence branch: cannot read {default_branch} sha: {sha_r.stderr}", file=sys.stderr)
+        return False
+    sha = (sha_r.stdout or "").strip()
+    create = subprocess.run(
+        [
+            "gh",
+            "api",
+            f"repos/{repo_ref}/git/refs",
+            "-f",
+            f"ref=refs/heads/{branch}",
+            "-f",
+            f"sha={sha}",
+        ],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if create.returncode != 0:
+        # race: branch appeared
+        probe2 = subprocess.run(
+            ["gh", "api", ref],
+            check=False,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        if probe2.returncode == 0:
+            return True
+        print(f"evidence branch create failed: {create.stderr or create.stdout}", file=sys.stderr)
+        return False
+    return True
+
+
+def github_repo_evidence_upload(
+    path: str,
+    *,
+    owner: str,
+    repo: str,
+    issue_key: str,
+    message: str,
+    env: dict[str, str],
+    branch: str = EVIDENCE_BRANCH,
+) -> str | None:
+    """Upload a real binary/text file to ``qa-evidence`` and return the blob URL.
+
+    Gists cannot host viewable PNG/MP4 (``gh gist create`` rejects binary; the old
+    ``.b64.txt`` workaround opens as plaintext). Repo Contents API stores the real
+    file; GitHub's blob page renders images and plays short videos when logged in.
     """
     if not os.path.isfile(path):
         return None
     import base64
+
+    if not ensure_evidence_branch(owner, repo, env=env, branch=branch):
+        return None
+
+    repo_ref = f"{owner}/{repo}"
+    base = os.path.basename(path)
+    rel = f"{_safe_evidence_dir(issue_key)}/{base}"
+    api_path = f"repos/{repo_ref}/contents/{rel}"
+
+    try:
+        with open(path, "rb") as fh:
+            content_b64 = base64.b64encode(fh.read()).decode("ascii")
+    except OSError as e:
+        print(f"evidence read error: {e}", file=sys.stderr)
+        return None
+
+    # Update existing file if present (Contents API requires sha).
+    existing_sha = ""
+    get_r = subprocess.run(
+        ["gh", "api", f"{api_path}?ref={branch}", "--jq", ".sha"],
+        check=False,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    if get_r.returncode == 0:
+        existing_sha = (get_r.stdout or "").strip()
+
+    # Prefer JSON body — large base64 blows past ARG_MAX with repeated -f flags.
     import tempfile
 
-    upload_path = path
-    tmp_b64: str | None = None
-    try:
-        # Detect binary: try UTF-8 decode of a sample, or known media suffixes.
-        lower = path.lower()
-        binary_suffix = lower.endswith(
-            (".mp4", ".webm", ".mov", ".m4v", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf")
-        )
-        if not binary_suffix:
-            try:
-                with open(path, "rb") as fh:
-                    fh.read(4096).decode("utf-8")
-            except UnicodeDecodeError:
-                binary_suffix = True
-        if binary_suffix:
-            with open(path, "rb") as fh:
-                raw = fh.read()
-            fd, tmp_b64 = tempfile.mkstemp(
-                prefix="qa-gist-", suffix=f"-{os.path.basename(path)}.b64.txt"
-            )
-            os.close(fd)
-            with open(tmp_b64, "w", encoding="ascii") as out_fh:
-                out_fh.write(base64.b64encode(raw).decode("ascii"))
-            upload_path = tmp_b64
+    body: dict[str, str] = {
+        "message": (message[:200] or f"qa-agent evidence {base}"),
+        "content": content_b64,
+        "branch": branch,
+    }
+    if existing_sha:
+        body["sha"] = existing_sha
 
+    tmp_json: str | None = None
+    try:
+        fd, tmp_json = tempfile.mkstemp(prefix="qa-evidence-", suffix=".json")
+        os.close(fd)
+        with open(tmp_json, "w", encoding="utf-8") as out_fh:
+            json.dump(body, out_fh)
+        put = subprocess.run(
+            ["gh", "api", "--method", "PUT", api_path, "--input", tmp_json],
+            check=False,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        if tmp_json and os.path.isfile(tmp_json):
+            try:
+                os.remove(tmp_json)
+            except OSError:
+                pass
+
+    if put.returncode != 0:
+        print(f"evidence upload error: {put.stderr or put.stdout}", file=sys.stderr)
+        return None
+    try:
+        payload = json.loads(put.stdout or "{}")
+    except json.JSONDecodeError:
+        payload = {}
+    html_url = (payload.get("content") or {}).get("html_url") or ""
+    if not html_url:
+        html_url = f"https://github.com/{repo_ref}/blob/{branch}/{rel}"
+    return html_url
+
+
+def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | None:
+    """Upload *text* evidence as a secret gist (project GH_TOKEN only).
+
+    Current `gh gist create` defaults to secret; `--secret` was removed (use `--public`
+    only when deliberately sharing). Never pass `--public` for QA evidence.
+
+    Do **not** use for PNG/MP4 — call ``github_repo_evidence_upload`` instead.
+    """
+    if not os.path.isfile(path):
+        return None
+    if _is_media_path(path):
+        print(
+            "secret_gist_upload refused media file — use github_repo_evidence_upload",
+            file=sys.stderr,
+        )
+        return None
+    try:
         out = subprocess.check_output(
-            ["gh", "gist", "create", upload_path, "--desc", desc[:80]],
+            ["gh", "gist", "create", path, "--desc", desc[:80]],
             text=True,
             stderr=subprocess.PIPE,
             env=env,
@@ -213,14 +385,19 @@ def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | No
     except OSError as e:
         print(f"secret gist upload error: {e}", file=sys.stderr)
         return None
-    finally:
-        if tmp_b64 and os.path.isfile(tmp_b64):
-            try:
-                os.remove(tmp_b64)
-            except OSError:
-                pass
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
     return lines[-1] if lines else None
+
+
+def evidence_markdown_line(basename: str, url: str) -> str:
+    """Markdown that opens the real file on GitHub (blob page), not a .b64.txt gist."""
+    lower = basename.lower()
+    if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+        # Blob URLs render the image in-browser; raw may 404 camo on private repos.
+        return f"- [{basename}]({url}) — open to view image"
+    if lower.endswith((".mp4", ".webm", ".mov", ".m4v")):
+        return f"- [{basename}]({url}) — open to play / download video"
+    return f"- [{basename}]({url})"
 
 
 def main() -> int:
@@ -363,23 +540,29 @@ def main() -> int:
             print(f"  ! attachment not found: {path}", file=sys.stderr)
             evidence_lines.append(f"- missing: `{path}`")
             continue
-        gist_url = secret_gist_upload(path, f"qa-agent evidence for {key}", env=gh_env)
         base = os.path.basename(path)
-        if gist_url:
+        url = github_repo_evidence_upload(
+            path,
+            owner=owner,
+            repo=repo,
+            issue_key=key,
+            message=f"qa-agent evidence for {key}: {base}",
+            env=gh_env,
+        )
+        if not url and not _is_media_path(path):
+            url = secret_gist_upload(path, f"qa-agent evidence for {key}", env=gh_env)
+        if url:
             attached_ok = True
             lower = base.lower()
             if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
                 screenshot_ok = True
-                evidence_lines.append(f"- ![{base}]({gist_url})")
             elif lower.endswith((".mp4", ".webm", ".mov", ".m4v")):
                 recording_ok = True
-                evidence_lines.append(f"- [{base}]({gist_url})")
-            else:
-                evidence_lines.append(f"- [{base}]({gist_url})")
-            print(f"  attached {base} → secret gist {gist_url}")
+            evidence_lines.append(evidence_markdown_line(base, url))
+            print(f"  attached {base} → {url}")
         else:
             evidence_lines.append(f"- upload failed: `{path}`")
-            print(f"  ! secret gist upload failed for {path}", file=sys.stderr)
+            print(f"  ! evidence upload failed for {path}", file=sys.stderr)
 
     if a.attach:
         subprocess.run(
@@ -397,9 +580,9 @@ def main() -> int:
             env=gh_env,
         )
         if screenshot_ok:
-            print("  bug_screenshot_attached=true (secret gist via project token)")
+            print("  bug_screenshot_attached=true (qa-evidence branch via project token)")
         if recording_ok:
-            print("  bug_recording_attached=true (secret gist via project token)")
+            print("  bug_recording_attached=true (qa-evidence branch via project token)")
         if not attached_ok:
             print(key)
             print(
