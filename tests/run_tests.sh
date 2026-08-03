@@ -915,6 +915,28 @@ ATTACH_OUT=$(python3 scripts/github_attach_evidence.py --project "projects/$GH_S
   && ok "github_attach_evidence requires project token" \
   || no "github_attach_evidence must exit 3 without token (got ec=$ATTACH_EC: $ATTACH_OUT)"
 grep_ok "github_attach_evidence\|secret gist" scripts/record_and_attach.sh "record_and_attach routes GitHub via github_attach_evidence"
+# Jira path: require projects/<slug>/.secrets/jira.env — ambient JIRA_* must not attach
+mkdir -p "projects/$SLUG/.secrets"
+cat > "projects/$SLUG/.secrets/server.env" <<EOF
+SERVER_CWD=/tmp
+SERVER_URL=http://localhost:59999
+EOF
+rm -f "projects/$SLUG/.secrets/jira.env"
+REC_STEPS=$(mktemp)
+echo '[]' > "$REC_STEPS"
+REC_EC=0
+REC_OUT=$(
+  JIRA_BASE_URL="https://EVIL.atlassian.net" \
+  JIRA_EMAIL="evil@evil.io" \
+  JIRA_API_TOKEN="evil_tok" \
+  bash scripts/record_and_attach.sh "$SLUG" "TST-1" "$REC_STEPS" "iso" 2>&1
+) || REC_EC=$?
+rm -f "$REC_STEPS"
+[[ "$REC_EC" -ne 0 ]] && echo "$REC_OUT" | grep -qi "jira.env\|ambient JIRA" \
+  && ok "record_and_attach Jira path ignores ambient without jira.env" \
+  || no "record_and_attach must require jira.env (got ec=$REC_EC: $REC_OUT)"
+grep_ok "unset JIRA_BASE_URL JIRA_EMAIL JIRA_API_TOKEN" scripts/record_and_attach.sh \
+  "record_and_attach clears ambient JIRA_* before sourcing jira.env"
 # gh gist create: secret is default; --secret flag removed in modern gh CLI
 ! grep -nE '^\s*\["gh", "gist", "create".*--secret' scripts/github_create_issue.py \
   && ok "secret_gist_upload omits removed --secret flag" \

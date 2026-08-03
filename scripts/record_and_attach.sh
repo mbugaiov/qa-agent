@@ -31,7 +31,15 @@ set -a
 if [[ "$PROVIDER" == "github_issues" ]]; then
   [[ -f "$GENV" ]] && . "$GENV"
 else
-  [[ -f "$JENV" ]] && . "$JENV"
+  # Per-project isolation (same as create_jira_issue.py): jira.env is mandatory and
+  # the ONLY source of attach credentials — never fall back to ambient JIRA_*.
+  [[ -f "$JENV" ]] || {
+    echo "Missing $JENV — cannot attach recording to Jira (ambient JIRA_* ignored)" >&2
+    exit 1
+  }
+  unset JIRA_BASE_URL JIRA_EMAIL JIRA_API_TOKEN
+  # shellcheck source=/dev/null
+  . "$JENV"
 fi
 set +a
 
