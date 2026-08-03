@@ -74,7 +74,8 @@ if [[ -f "$REQ_INDEX" ]]; then
 fi
 
 if [[ -n "$CHANGE" ]]; then
-  DELTA_DIR="$BASE/openspec/changes/$CHANGE/specs"
+  CHANGE_ROOT="$BASE/openspec/changes/$CHANGE"
+  DELTA_DIR="$CHANGE_ROOT/specs"
   if [[ -d "$DELTA_DIR" ]]; then
     echo "=== Change delta: $CHANGE ==="
     if [[ -n "$CAP" ]]; then
@@ -85,6 +86,12 @@ if [[ -n "$CHANGE" ]]; then
   else
     echo "WARN: no delta at $DELTA_DIR" >&2
   fi
+  # Hermes BA artifacts (Argus AC oracle)
+  for extra in acceptance.feature traceability.md requirements.md review.md; do
+    if [[ -f "$CHANGE_ROOT/$extra" ]]; then
+      read_spec "$CHANGE_ROOT/$extra"
+    fi
+  done
 fi
 
 if [[ -n "$CAP" ]]; then
