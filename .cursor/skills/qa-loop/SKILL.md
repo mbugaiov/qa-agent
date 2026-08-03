@@ -25,11 +25,12 @@ A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of
    - **Regression**: a Done ticket that now FAILS → `scripts/reopen_regression.py` (auto-reopen to In Progress).
 2. **Fresh exploratory testing** — pick the next **uncovered or least-covered** area and probe it (rotate so
    coverage broadens every tick, not the same pages). Track covered areas in `run.md` so ticks don't repeat.
-3. **Auto-file new confirmed bugs** to Jira under the epic (dedupe via JQL first, unattended); update `run.md` (covered areas + findings).
+3. **Auto-file new confirmed bugs** under the epic/repo (dedupe first, unattended) via
+   `create_bug_issue.py` (routes to `create_jira_issue.py` or `github_create_issue.py`); update `run.md`.
 
 4. **impl-qa factory queue (when retest scope is empty):** `labels = impl-qa AND status = "To Do"` — see **impl-qa active work** and **Same-tick completion** below. **Never start impl-qa while retest JQL has open V/T tickets.**
 
-5. **File confirmed defects during regression/retest:** any `confirmed-defect` or sign-off-blocking environmental issue → `create_jira_issue.py` immediately with `--labels <slug>,confirmed-defect` (script auto-adds **`impl-dev`** for dev factory autotake; dedupe JQL first). Comment on the feature ticket; the **bug is a separate issue** under the epic.
+5. **File confirmed defects during regression/retest:** any `confirmed-defect` or sign-off-blocking environmental issue → `create_bug_issue.py` immediately with `--labels <slug>,confirmed-defect` (script auto-adds **`impl-dev`** for dev factory autotake; dedupe first). Comment on the feature ticket (`--related-key`); the **bug is a separate issue**. **Forbidden for github_issues:** only `github_return_to_dev` on the feature ticket without filing a separate bug when the failure is a product defect.
 
 **Not on every tick:** ad-hoc security slices on non-charter tickets — run full security only on **`exploratory`**, **`regression`**, and **`impl-qa` charter** run cycles (skill `qa-security`). Loop ticks still **must execute impl-qa charter slices** when an `impl-qa` ticket is in scope.
 

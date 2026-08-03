@@ -73,7 +73,8 @@ If the project uses factory engineering tickets, label them **`impl-dev`** or **
 2. **`ticket_tc.sh`** — persist steps in `test-cases/TC-<KEY>.md`; execution must match persisted TC + OpenSpec oracle.
 3. Log **`openspec_read=true`**, **`openspec_req=REQ-…`**, **`openspec_scenario=…`** in `dod_check` or bug description.
 
-### When filing a bug (`create_jira_issue.py`)
+### When filing a bug (`create_bug_issue.py` → Jira or GitHub)
+
 **All required before the issue is considered filed:**
 
 | # | Artifact | How |
@@ -81,11 +82,11 @@ If the project uses factory engineering tickets, label them **`impl-dev`** or **
 | 1 | **Exact steps** | Numbered in `templates/bug-report.md` — same steps as recording |
 | 2 | **Expected vs actual** | **Quote OpenSpec THEN** (or REQ from traceability matrix / `manual-test-plan.md`) |
 | 3 | **Screenshot** | Error state PNG → `--attach` (repeatable for multiple) |
-| 4 | **E2E recording** | After create: `record_and_attach.sh <slug> <NEW-KEY> <steps.json> "…"` |
+| 4 | **E2E recording** | After create: `record_and_attach.sh` (Jira) or gist/`--attach` video (GitHub) on the **new** bug key |
 | 5 | **Build / env** | STG buildId, role, URL in description |
 | 6 | **Factory log** | `bug_filed=<KEY>` + `bug_recording_attached=true` + `bug_screenshot_attached=true` in `dod_check` |
 
-**Forbidden:** filing with description-only; markdown-only evidence; curl output without screenshot+recording; steps that don't match OpenSpec oracle.
+**Forbidden:** filing with description-only; markdown-only evidence; curl output without screenshot+recording; steps that don't match OpenSpec oracle; on GitHub factories, returning the feature ticket without a separate `confirmed-defect` bug when the failure is a product defect.
 
 ### When moving a ticket to Done
 - **`record_and_attach.sh`** on the **feature/impl-qa ticket** (≤10MB E2E of customer journey proving acceptance).
@@ -104,14 +105,20 @@ If the project uses factory engineering tickets, label them **`impl-dev`** or **
 
 # 2. Write templates/bug-report.md (OpenSpec REQ/Scenario + exact steps)
 
-# 3. Create with screenshot(s)
-python3 scripts/create_jira_issue.py --project projects/<slug> \
+# 3. Create with screenshot(s) — tracker-aware router
+python3 scripts/create_bug_issue.py --project projects/<slug> \
   --summary "PF-XX: <one line>" --description-file <run>/bug-report.md \
   --severity S2 --labels <slug>,confirmed-defect \
-  --attach <run>/screenshots/BUG-001-fail.png
+  --attach <run>/screenshots/BUG-001-fail.png \
+  --related-key <FEATURE-KEY>
+
+# Equivalent direct scripts:
+#   create_jira_issue.py     (tracker.provider jira)
+#   github_create_issue.py   (tracker.provider github_issues) — dedupe on by default
 
 # 4. Recording on the NEW bug key (MUST)
-scripts/record_and_attach.sh <slug> <NEW-JIRA-KEY> <steps.json> "Repro: …"
+scripts/record_and_attach.sh <slug> <NEW-KEY> <steps.json> "Repro: …"   # Jira
+# GitHub: also --attach the mp4 to github_create_issue, or gist + comment on <slug>#N
 
 # 5. Ledger
 ./scripts/factory_log.sh <slug> <FEATURE-KEY> dod_check … bug_filed=<NEW-KEY> \
@@ -188,10 +195,10 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
 Log a terminal `dod_check` per scope ticket and pass `factory_tick_gate.sh` before `tick_end` (skill `qa-loop`, `factory/schema.md`). **Forbidden at tick_end:** `PARTIAL`, `DEFERRED`, `BLOCKED`, comments-only “PASS (recording pending)”. V/T tickets with blockers must use `RETURN_DEV` or `FAIL` **and** transition to In Progress same tick.
 
 ### Auto-file & auto-reopen (unattended, default ON)
-- **Confirmed defect** (evidence + `confirmed-defect` verdict) → file immediately with `create_jira_issue.py`
+- **Confirmed defect** (evidence + `confirmed-defect` verdict) → file immediately with `create_bug_issue.py`
   (no ask-first). **Always pass `--labels <slug>,confirmed-defect`** — the script auto-adds **`impl-dev`** so the
-  dev factory loop can autotake (`labels = impl-dev AND status = "To Do"`). **Dedupe via JQL first** (search open
-  issues under the epic with the same summary); use `--dry-run` for an audit preview only. NEVER auto-file
+  dev factory loop can autotake. **Dedupe first** (Jira JQL / GitHub open title match — `github_create_issue.py`
+  dedupes by default). Use `--related-key` on GitHub to comment the feature ticket. NEVER auto-file
   `works-as-specified`/`cannot-reproduce`/`needs-human`.
 - **Regression** (a Done ticket FAILS retest) → `scripts/reopen_regression.py --project projects/<slug> --key <ISSUE-KEY> --reason "…" [--attach …]` moves it to In Progress with a REGRESSION comment + evidence.
 

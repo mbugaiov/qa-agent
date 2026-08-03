@@ -4,7 +4,7 @@
 > **screenshot(s)** of the failure state **and** an **E2E screen recording** of the reproduction.
 > Steps and expected behaviour MUST cite **OpenSpec** (REQ-/SC-) or persisted **TC** from `test-cases/`.
 >
-> Workflow: `openspec_read.sh` → execute steps → capture evidence → `create_jira_issue.py --attach …` → `record_and_attach.sh` on the new Jira key.
+> Workflow: `openspec_read.sh` → execute steps → capture evidence → `create_bug_issue.py --attach …` → recording on the new bug key.
 
 ## BUG-001 — <one-line description of the problem, not the symptom>
 - **Severity**: S1 | S2 | S3 | S4
@@ -50,7 +50,7 @@
 **Verdict**: <verdict>
 **Confidence**: high | medium | low
 
-**Jira:** `<JIRA-KEY>` — filed with `--labels <slug>,confirmed-defect` (+ `impl-dev` auto)
+**Jira / GitHub:** `<KEY>` — filed with `--labels <slug>,confirmed-defect` (+ `impl-dev` auto) via `create_bug_issue.py`
 
 ### Root cause & class (for confirmed-defect)
 - **Root cause (mechanism-specific)**: …

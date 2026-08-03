@@ -307,7 +307,7 @@ def require_bug_jira_evidence(key, dod, errors):
     if str(dod.get("bug_screenshot_attached", "")).lower() not in ("true", "1", "yes"):
         errors.append(
             f"{key}: bug {bug_key} requires bug_screenshot_attached=true "
-            f"(create_jira_issue.py --attach screenshot)"
+            f"(create_jira_issue.py / github_create_issue.py --attach screenshot)"
         )
     if not dod.get("openspec_req") and not dod.get("openspec_scenario"):
         errors.append(
