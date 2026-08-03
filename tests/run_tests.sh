@@ -914,7 +914,7 @@ ATTACH_OUT=$(python3 scripts/github_attach_evidence.py --project "projects/$GH_S
 [[ "$ATTACH_EC" -eq 3 ]] && echo "$ATTACH_OUT" | grep -qi "GITHUB_ATTACH_TOKEN_REQUIRED" \
   && ok "github_attach_evidence requires project token" \
   || no "github_attach_evidence must exit 3 without token (got ec=$ATTACH_EC: $ATTACH_OUT)"
-grep_ok "github_attach_evidence\|secret gist" scripts/record_and_attach.sh "record_and_attach routes GitHub via github_attach_evidence"
+grep_ok "github_attach_evidence\|qa-evidence" scripts/record_and_attach.sh "record_and_attach routes GitHub via github_attach_evidence"
 # Jira path: require projects/<slug>/.secrets/jira.env — ambient JIRA_* must not attach
 mkdir -p "projects/$SLUG/.secrets"
 cat > "projects/$SLUG/.secrets/server.env" <<EOF
@@ -937,6 +937,14 @@ rm -f "$REC_STEPS"
   || no "record_and_attach must require jira.env (got ec=$REC_EC: $REC_OUT)"
 grep_ok "unset JIRA_BASE_URL JIRA_EMAIL JIRA_API_TOKEN" scripts/record_and_attach.sh \
   "record_and_attach clears ambient JIRA_* before sourcing jira.env"
+# Media evidence must NOT be wrapped as .b64.txt gists (unviewable plaintext).
+grep_ok "github_repo_evidence_upload" scripts/github_create_issue.py \
+  "github evidence uses repo qa-evidence upload for media"
+grep_ok "github_repo_evidence_upload" scripts/github_attach_evidence.py \
+  "github_attach_evidence uses repo upload"
+! grep -nE 'b64\.txt' scripts/github_create_issue.py scripts/github_attach_evidence.py \
+  && ok "no .b64.txt gist workaround in attach path" \
+  || no "b64.txt gist workaround must be removed"
 # gh gist create: secret is default; --secret flag removed in modern gh CLI
 ! grep -nE '^\s*\["gh", "gist", "create".*--secret' scripts/github_create_issue.py \
   && ok "secret_gist_upload omits removed --secret flag" \

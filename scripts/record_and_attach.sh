@@ -2,7 +2,7 @@
 # Record a retest flow, compress ≤ MAX_MB, attach to the tracker ticket, discard local copy.
 #
 # Usage: scripts/record_and_attach.sh <slug> <TICKET-KEY> <stepsJsonFile> [caption]
-# Tracker: Jira (multipart attach) or GitHub Issues (secret gist via project GITHUB_TOKEN).
+# Tracker: Jira (multipart attach) or GitHub Issues (qa-evidence branch via project GITHUB_TOKEN).
 # Requires: app repo with playwright (SERVER_CWD from .secrets/server.env), ffmpeg.
 set -uo pipefail
 
@@ -81,7 +81,7 @@ if [[ "$PROVIDER" == "github_issues" ]]; then
   echo "$ATTACH_OUT"
   echo "$ATTACH_OUT" | grep -Eq 'recording_attached=true|bug_recording_attached=true|evidence_attached=true' \
     || { echo "ERROR: GitHub attach soft-skipped or missing success flag" >&2; exit 1; }
-  echo "Attached retest recording to $KEY (${MB}MB) via GitHub secret gist. Local copy discarded."
+  echo "Attached retest recording to $KEY (${MB}MB) via GitHub qa-evidence branch. Local copy discarded."
   exit 0
 fi
 
