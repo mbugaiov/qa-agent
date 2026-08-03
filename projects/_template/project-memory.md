@@ -30,7 +30,7 @@
 - **On Hold / skip:** <ticket keys or status exclusions>
 - **Last known scope:** <empty | list keys>
 - **DoD gate:** before each `tick_end`, `./scripts/factory_tick_gate.sh <slug>` must exit 0. Log `scope_check` + per-ticket `dod_check` (terminal verdicts only) with **`verdict_review=pass`** after skill `qa-verdict-review` + `check_verdict_review.sh`. Close/return scripts refuse without that ledger pass. See `factory/schema.md` + skill `qa-loop`.
-- **Schema sync:** after engine `_template` schema changes, run `./scripts/sync_factory_schema.sh <slug>` (or `--overlay` for example-only project schemas like LRM).
+- **Schema sync:** after engine `_template` schema changes, run `./scripts/sync_factory_schema.sh <slug>` (or `--overlay` for example-only project schemas).
 
 ## Coverage ledger (rotate exploratory each tick)
 - ✅ Covered: <areas already tested>
