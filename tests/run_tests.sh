@@ -859,11 +859,16 @@ have scripts/github_handoff.py
 have scripts/github_handoff.sh
 have scripts/github_close_issue.py
 have scripts/github_return_to_dev.py
+have scripts/github_create_issue.py
+have scripts/create_bug_issue.py
 have scripts/qa_scope.sh
 have scripts/qa_handoff.sh
 python3 tests/unit/github_tracker_test.py -q 2>/dev/null \
   && ok "github_tracker unit tests" \
   || no "github_tracker unit tests"
+python3 tests/unit/github_create_issue_test.py -q 2>/dev/null \
+  && ok "github_create_issue unit tests" \
+  || no "github_create_issue unit tests"
 # Template project has no live git/tracker → github_scope must no-op (inactive), not crash.
 OUT=$(python3 scripts/github_scope.py --project "projects/$SLUG" --json 2>/dev/null)
 echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('inactive') is True and d.get('count')==0" \
@@ -896,6 +901,21 @@ DRY=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key 
 echo "$DRY" | grep -qi "dry-run" && ok "github_close_issue dry-run" || no "github_close_issue dry-run"
 DRY=$(python3 scripts/github_return_to_dev.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --reason "x" --steps-tried "- y" --dry-run 2>&1)
 echo "$DRY" | grep -q "QA RETURN" && ok "github_return_to_dev dry-run" || no "github_return_to_dev dry-run"
+# github_create_issue dry-run (inactive repo still prints labels for confirmed-defect→impl-dev)
+DRY=$(python3 scripts/github_create_issue.py --project "projects/$GH_SLUG" --summary "PF: dup title" \
+  --description "body" --severity S2 --labels "${GH_SLUG},confirmed-defect" --dry-run 2>&1)
+echo "$DRY" | grep -q '"impl-dev"' && ok "github_create_issue confirmed-defect adds impl-dev" \
+  || no "github_create_issue should add impl-dev (got: $DRY)"
+echo "$DRY" | grep -qi "dedupe" && ok "github_create_issue dry-run mentions dedupe" \
+  || no "github_create_issue dry-run should mention dedupe"
+# Router: github_issues project → github_create_issue
+ROUTE=$(python3 scripts/create_bug_issue.py --project "projects/$GH_SLUG" --summary "t" --description "d" --severity S3 --labels confirmed-defect --dry-run 2>&1)
+echo "$ROUTE" | grep -qi "github_create_issue" && ok "create_bug_issue routes to github" \
+  || no "create_bug_issue should route github (got: $ROUTE)"
+# Router: template jira → create_jira_issue
+ROUTE_J=$(python3 scripts/create_bug_issue.py --project "projects/$SLUG" --summary "t" --description "d" --severity S3 --labels confirmed-defect --dry-run 2>&1)
+echo "$ROUTE_J" | grep -qi "create_jira_issue\|DRY RUN" && ok "create_bug_issue routes to jira on template" \
+  || no "create_bug_issue should route jira (got: $ROUTE_J)"
 # Live close without ledger must fail before calling gh
 CLOSE_BLOCK=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --comment "pass" 2>&1); CLOSE_BLOCK_EC=$?
 [[ "$CLOSE_BLOCK_EC" -eq 4 ]] && echo "$CLOSE_BLOCK" | grep -qi "VERDICT_REVIEW_REQUIRED" \
@@ -911,6 +931,8 @@ python3 scripts/verdict_review_require.py --project "projects/$GH_SLUG" --key "$
   && ok "github path ledger unlocks verdict_review_require" \
   || no "github path should unlock after dod_check"
 grep_ok "qa_scope.sh" .cursor/skills/qa-loop/SKILL.md "qa-loop skill references qa_scope.sh"
+grep_ok "github_create_issue" .cursor/skills/qa-loop/SKILL.md "qa-loop documents github_create_issue"
+grep_ok "create_bug_issue" .cursor/skills/qa-jira/SKILL.md "qa-jira documents create_bug_issue router"
 rm -rf "projects/$GH_SLUG"
 
 echo "== 19. Execution-only wake + backlog drain policy =="

@@ -83,9 +83,9 @@ Exit **0** = gate open → safe to log `tick_end`. Exit **1** = gate closed → 
 | `feature_steps_executed` | `FAIL`, `RETURN_DEV`, `DONE` | `true` — ticket test plan steps executed |
 | `alternate_locators_tried` | `RETURN_DEV` | `true` — exhausted data-testid / role / text / native click |
 | `steps_tried` | `RETURN_DEV` (optional alt.) | Short summary if `feature_steps_executed` omitted |
-| `bug_filed` | `FAIL`, `RETURN_DEV` | Jira key of separate bug (product defect or env blocker) |
-| `bug_recording_attached` | `FAIL`, `RETURN_DEV` (when `bug_filed`/`dev_ticket`) | `true` — `record_and_attach.sh` on the **bug** Jira key |
-| `bug_screenshot_attached` | `FAIL`, `RETURN_DEV` (when `bug_filed`/`dev_ticket`) | `true` — screenshot attached via `create_jira_issue.py --attach` |
+| `bug_filed` | `FAIL`, `RETURN_DEV` | Tracker key of separate bug (Jira `ABC-9` or GitHub `<slug>#N`) |
+| `bug_recording_attached` | `FAIL`, `RETURN_DEV` (when `bug_filed`/`dev_ticket`) | `true` — recording on the **bug** key (`record_and_attach.sh` Jira, or `github_create_issue.py --attach`/gist) |
+| `bug_screenshot_attached` | `FAIL`, `RETURN_DEV` (when `bug_filed`/`dev_ticket`) | `true` — screenshot via `create_bug_issue.py --attach` (Jira or GitHub) |
 | `openspec_req` | `FAIL`, `RETURN_DEV`, `DONE`, bug filing | REQ-ID from `openspec_read.sh` (oracle for expected) |
 | `openspec_scenario` | alt. to `openspec_req` | Scenario name from OpenSpec |
 | `dev_ticket` | `RETURN_DEV` (locator gap) | impl-dev task for testids/locators |

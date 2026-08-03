@@ -1,17 +1,28 @@
 ---
 name: qa-jira
-description: Per-project Jira integration for the QA Agent — strict isolation, the active/inactive gate, onboarding (jira_discover), filing bugs with assignee/story-points/estimate/sprint/epic, attaching ≤10MB retest recordings, and the L5 UNATTENDED Validate/Testing→Done workflow (auto-accept with STG buildId gate, auto-file confirmed bugs, auto-reopen regressions; needs-human is the only stop). Use before any Jira action (file/transition/comment/recording/reopen).
+description: Per-project tracker integration for the QA Agent (Jira or GitHub Issues) — isolation, filing bugs via create_bug_issue.py, recordings/evidence, and L5 unattended Validate/Testing→Done (auto-accept, auto-file confirmed bugs, auto-reopen; needs-human is the only stop). Use before any tracker create/close/return/comment/recording.
 ---
 
-# Jira integration (per-project, optional)
+# Tracker integration (Jira or GitHub Issues)
 
-**Strict per-project isolation.** Each project's Jira connection + field ids live ONLY in its own
-`projects/<slug>/.secrets/jira.env`. No shared/global config; scripts read the project's file exclusively
-(ambient env ignored) — project A can never pull project B's settings. A without Jira details runs Jira-free.
+**Strict per-project isolation.** Each project's tracker credentials live ONLY in its own
+`projects/<slug>/.secrets/` (`jira.env` and/or `github.env` + `project.yaml` tracker block).
+No shared/global config; ambient env ignored.
 
-**Gate first — no Jira details ⇒ do nothing with Jira.** Before any Jira action run
-`scripts/jira_status.sh <slug>`. If `inactive` (no `.secrets/jira.env`, or placeholder fields), **skip ALL
-Jira work** — just local QA + `run.md`. `create_jira_issue.py` is itself a no-op (not an error) when unconfigured.
+**Route filing through `create_bug_issue.py`** — it selects `create_jira_issue.py` or
+`github_create_issue.py` from `tracker.provider`.
+
+**GitHub credentials:** `projects/<slug>/.secrets/github.env` (`GITHUB_TOKEN` / `GH_TOKEN`).
+When set, `github_create_issue.py` strips ambient `GH_TOKEN`/`GITHUB_TOKEN` for its
+subprocesses and uses the project token — required for `--attach` (secret gist upload).
+Without a project token, issue create may still use the local `gh` login, but `--attach`
+upload is refused (isolation). Copy `github.env.example` → `github.env`.
+
+**Jira gate:** if `scripts/jira_status.sh <slug>` is `inactive` and the project is Jira-backed,
+**skip ALL Jira work** — local QA + `run.md` only. `create_jira_issue.py` no-ops when unconfigured.
+
+**GitHub gate:** if `tracker.provider: github_issues` but owner/repo/`gh` missing, GitHub scripts
+no-op or exit inactive (same offline-safe contract as `github_scope.py`).
 
 `projects/<slug>/.secrets/jira.env` (copy from `jira.env.example`):
 
@@ -73,7 +84,8 @@ If the project uses factory engineering tickets, label them **`impl-dev`** or **
 2. **`ticket_tc.sh`** — persist steps in `test-cases/TC-<KEY>.md`; execution must match persisted TC + OpenSpec oracle.
 3. Log **`openspec_read=true`**, **`openspec_req=REQ-…`**, **`openspec_scenario=…`** in `dod_check` or bug description.
 
-### When filing a bug (`create_jira_issue.py`)
+### When filing a bug (`create_bug_issue.py` → Jira or GitHub)
+
 **All required before the issue is considered filed:**
 
 | # | Artifact | How |
@@ -81,11 +93,11 @@ If the project uses factory engineering tickets, label them **`impl-dev`** or **
 | 1 | **Exact steps** | Numbered in `templates/bug-report.md` — same steps as recording |
 | 2 | **Expected vs actual** | **Quote OpenSpec THEN** (or REQ from traceability matrix / `manual-test-plan.md`) |
 | 3 | **Screenshot** | Error state PNG → `--attach` (repeatable for multiple) |
-| 4 | **E2E recording** | After create: `record_and_attach.sh <slug> <NEW-KEY> <steps.json> "…"` |
+| 4 | **E2E recording** | After create: `record_and_attach.sh` (Jira) or gist/`--attach` video (GitHub) on the **new** bug key |
 | 5 | **Build / env** | STG buildId, role, URL in description |
 | 6 | **Factory log** | `bug_filed=<KEY>` + `bug_recording_attached=true` + `bug_screenshot_attached=true` in `dod_check` |
 
-**Forbidden:** filing with description-only; markdown-only evidence; curl output without screenshot+recording; steps that don't match OpenSpec oracle.
+**Forbidden:** filing with description-only; markdown-only evidence; curl output without screenshot+recording; steps that don't match OpenSpec oracle; on GitHub factories, returning the feature ticket without a separate `confirmed-defect` bug when the failure is a product defect.
 
 ### When moving a ticket to Done
 - **`record_and_attach.sh`** on the **feature/impl-qa ticket** (≤10MB E2E of customer journey proving acceptance).
@@ -104,14 +116,20 @@ If the project uses factory engineering tickets, label them **`impl-dev`** or **
 
 # 2. Write templates/bug-report.md (OpenSpec REQ/Scenario + exact steps)
 
-# 3. Create with screenshot(s)
-python3 scripts/create_jira_issue.py --project projects/<slug> \
+# 3. Create with screenshot(s) — tracker-aware router
+python3 scripts/create_bug_issue.py --project projects/<slug> \
   --summary "PF-XX: <one line>" --description-file <run>/bug-report.md \
   --severity S2 --labels <slug>,confirmed-defect \
-  --attach <run>/screenshots/BUG-001-fail.png
+  --attach <run>/screenshots/BUG-001-fail.png \
+  --related-key <FEATURE-KEY>
+
+# Equivalent direct scripts:
+#   create_jira_issue.py     (tracker.provider jira)
+#   github_create_issue.py   (tracker.provider github_issues) — dedupe on by default
 
 # 4. Recording on the NEW bug key (MUST)
-scripts/record_and_attach.sh <slug> <NEW-JIRA-KEY> <steps.json> "Repro: …"
+scripts/record_and_attach.sh <slug> <NEW-KEY> <steps.json> "Repro: …"   # Jira
+# GitHub: also --attach the mp4 to github_create_issue, or gist + comment on <slug>#N
 
 # 5. Ledger
 ./scripts/factory_log.sh <slug> <FEATURE-KEY> dod_check … bug_filed=<NEW-KEY> \
@@ -188,10 +206,10 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
 Log a terminal `dod_check` per scope ticket and pass `factory_tick_gate.sh` before `tick_end` (skill `qa-loop`, `factory/schema.md`). **Forbidden at tick_end:** `PARTIAL`, `DEFERRED`, `BLOCKED`, comments-only “PASS (recording pending)”. V/T tickets with blockers must use `RETURN_DEV` or `FAIL` **and** transition to In Progress same tick.
 
 ### Auto-file & auto-reopen (unattended, default ON)
-- **Confirmed defect** (evidence + `confirmed-defect` verdict) → file immediately with `create_jira_issue.py`
+- **Confirmed defect** (evidence + `confirmed-defect` verdict) → file immediately with `create_bug_issue.py`
   (no ask-first). **Always pass `--labels <slug>,confirmed-defect`** — the script auto-adds **`impl-dev`** so the
-  dev factory loop can autotake (`labels = impl-dev AND status = "To Do"`). **Dedupe via JQL first** (search open
-  issues under the epic with the same summary); use `--dry-run` for an audit preview only. NEVER auto-file
+  dev factory loop can autotake. **Dedupe first** (Jira JQL / GitHub open title match — `github_create_issue.py`
+  dedupes by default). Use `--related-key` on GitHub to comment the feature ticket. NEVER auto-file
   `works-as-specified`/`cannot-reproduce`/`needs-human`.
 - **Regression** (a Done ticket FAILS retest) → `scripts/reopen_regression.py --project projects/<slug> --key <ISSUE-KEY> --reason "…" [--attach …]` moves it to In Progress with a REGRESSION comment + evidence.
 

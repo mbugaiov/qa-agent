@@ -82,6 +82,8 @@ scripts/new_run.sh <slug> <type> "<task>"
 | `scripts/jira_discover.py` | Discover a project's Jira ids (assignee, board, sprint, story-point/estimation fields) to fill `.secrets/jira.env` |
 | `scripts/gh_auth_check.sh` | Gate: is `gh` logged in for git push/pull? (see `HOST_SETUP.md`) |
 | `scripts/create_jira_issue.py` | File bugs/tasks into the project's Jira (Markdown → ADF; use `templates/jira-task.md` for tasks) |
+| `scripts/github_create_issue.py` | File bugs into GitHub Issues (`github_issues` tracker) — dedupe + `confirmed-defect`→`impl-dev` |
+| `scripts/create_bug_issue.py` | Tracker-aware router → Jira or GitHub create script |
 | `templates/jira-task.md` | Jira Task description template: business context, Requirement, OpenSpec, Gherkin scenarios, acceptance criteria |
 | `scripts/record_and_attach.sh` | Record a retest flow (Playwright), compress ≤10MB, attach to the Jira ticket, delete local copy |
 | `scripts/factory_log.sh` | Append factory tick/ticket events to `projects/<slug>/factory/runs/*.jsonl` |

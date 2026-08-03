@@ -20,16 +20,18 @@ A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of
    - `needs-human` verdict (ambiguous / policy / destructive) → do NOT auto-close; leave open and surface to the user.
    - Always leave a QA comment with the verdict + evidence.
    - **Recording evidence (ALWAYS, FE *and* BE/infra):** attach a ≤10MB E2E screen recording showing the
-     **customer-side** steps that validate the fix/feature works now, via `scripts/record_and_attach.sh`
-     (stored only in Jira) — required for every auto-Done and every confirmed bug. Pure-CI/pipeline tickets exempt.
+     **customer-side** steps that validate the fix/feature works now — Jira: `scripts/record_and_attach.sh`;
+     GitHub Issues: `github_create_issue.py --attach` / gist on the bug key (or comment on the feature key) —
+     required for every auto-Done and every confirmed bug. Pure-CI/pipeline tickets exempt.
    - **Regression**: a Done ticket that now FAILS → `scripts/reopen_regression.py` (auto-reopen to In Progress).
 2. **Fresh exploratory testing** — pick the next **uncovered or least-covered** area and probe it (rotate so
    coverage broadens every tick, not the same pages). Track covered areas in `run.md` so ticks don't repeat.
-3. **Auto-file new confirmed bugs** to Jira under the epic (dedupe via JQL first, unattended); update `run.md` (covered areas + findings).
+3. **Auto-file new confirmed bugs** under the epic/repo (dedupe first, unattended) via
+   `create_bug_issue.py` (routes to `create_jira_issue.py` or `github_create_issue.py`); update `run.md`.
 
 4. **impl-qa factory queue (when retest scope is empty):** `labels = impl-qa AND status = "To Do"` — see **impl-qa active work** and **Same-tick completion** below. **Never start impl-qa while retest JQL has open V/T tickets.**
 
-5. **File confirmed defects during regression/retest:** any `confirmed-defect` or sign-off-blocking environmental issue → `create_jira_issue.py` immediately with `--labels <slug>,confirmed-defect` (script auto-adds **`impl-dev`** for dev factory autotake; dedupe JQL first). Comment on the feature ticket; the **bug is a separate issue** under the epic.
+5. **File confirmed defects during regression/retest:** any `confirmed-defect` or sign-off-blocking environmental issue → `create_bug_issue.py` immediately with `--labels <slug>,confirmed-defect` (script auto-adds **`impl-dev`** for dev factory autotake; dedupe first). Comment on the feature ticket (`--related-key`); the **bug is a separate issue**. **Forbidden for github_issues:** only `github_return_to_dev` on the feature ticket without filing a separate bug when the failure is a product defect.
 
 **Not on every tick:** ad-hoc security slices on non-charter tickets — run full security only on **`exploratory`**, **`regression`**, and **`impl-qa` charter** run cycles (skill `qa-security`). Loop ticks still **must execute impl-qa charter slices** when an `impl-qa` ticket is in scope.
 
@@ -208,18 +210,18 @@ Arm/re-arm via `scripts/arm_qa_loop.sh <slug>` so the sleeper prompt carries the
 | 0c | Write 3–5 test steps in `run.md` from **OpenSpec + handoff** (align with persisted TC) | (run.md checklist) |
 | 1 | Two-pass retest on **canonical source** (detail / audit / API) | `retest_attempted=true`, `feature_steps_executed=true` |
 | 2 | `stg_buildid.sh` → MATCH or MATCH_AHEAD (or N/A / SKIP) | `buildid_gate` |
-| 3 | `record_and_attach.sh` → Jira (unless `recording_exempt` pure-CI) | `recording_attached=true` |
-| 3b | **Filed bugs:** screenshot `--attach` + `record_and_attach.sh` on **bug** key | `bug_screenshot_attached=true`, `bug_recording_attached=true` |
-| 4 | Jira `transition` + comment: **Done** if PASS; **In Progress** if FAIL or blocked | `transition` event |
+| 3 | Recording attached (Jira `record_and_attach.sh` / GitHub `--attach` or gist; unless `recording_exempt` pure-CI) | `recording_attached=true` |
+| 3b | **Filed bugs:** screenshot `--attach` + recording on **bug** key | `bug_screenshot_attached=true`, `bug_recording_attached=true` |
+| 4 | Tracker transition + comment: **Done** if PASS; return to Dev if FAIL or blocked | `transition` event |
 
 **RETURN_DEV / FAIL** additionally require in `dod_check`: `retest_attempted=true`,
 `alternate_locators_tried=true` (RETURN_DEV only), `feature_steps_executed=true` or `steps_tried=…`.
-`jira_return_in_progress.py` requires `--steps-tried` (summary of what was attempted).
+Return scripts require `--steps-tried` (summary of what was attempted).
 
 **V/T terminal outcomes (mandatory — no third state):**
 
-A ticket in `Validate/Testing` must end the tick as either **Done** or **In Progress**. Logging
-`BLOCKED` while Jira still shows V/T is **forbidden**.
+A ticket in `Validate/Testing` (or GitHub `validate-testing`) must end the tick as either **Done** or returned to Dev. Logging
+`BLOCKED` while the tracker still shows V/T is **forbidden**.
 
 **Before declaring blocked**, exhaust alternate verification:
 - other locators (`data-testid`, aria, role, text, CSS)
@@ -227,8 +229,8 @@ A ticket in `Validate/Testing` must end the tick as either **Done** or **In Prog
 - manual two-pass on canonical source if automation cannot drive one control
 
 If still blocked:
-1. **File** a separate Jira issue — **`templates/bug-report.md`** with OpenSpec REQ/Scenario, exact steps, screenshot `--attach`, then **`record_and_attach.sh`** on the new bug key (see skill `qa-jira` Evidence package).
-2. **Return** feature ticket: `jira_return_in_progress.py` + `templates/retest-fail-dev-handoff.md` (quote OpenSpec THEN vs actual).
+1. **File** a separate tracker bug — **`templates/bug-report.md`** with OpenSpec REQ/Scenario, exact steps, screenshot `--attach` via `create_bug_issue.py`, then recording on the new bug key (Jira: `record_and_attach.sh`; GitHub: `--attach` mp4 / gist).
+2. **Return** feature ticket: `jira_return_in_progress.py` + handoff template, or `github_return_to_dev.py --dev-ticket <BUG-KEY>`.
 3. Log `dod_check verdict=FAIL|RETURN_DEV` with `bug_filed`, `bug_recording_attached=true`, `bug_screenshot_attached=true`, `openspec_req=REQ-…`, `dev_handoff=<path>`.
 
 **Terminal `dod_check` verdicts only:**
