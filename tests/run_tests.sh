@@ -861,6 +861,8 @@ have scripts/github_close_issue.py
 have scripts/github_return_to_dev.py
 have scripts/github_create_issue.py
 have scripts/create_bug_issue.py
+have scripts/github_attach_evidence.py
+have scripts/record_and_attach.sh
 have scripts/qa_scope.sh
 have scripts/qa_handoff.sh
 python3 tests/unit/github_tracker_test.py -q 2>/dev/null \
@@ -869,6 +871,9 @@ python3 tests/unit/github_tracker_test.py -q 2>/dev/null \
 python3 tests/unit/github_create_issue_test.py -q 2>/dev/null \
   && ok "github_create_issue unit tests" \
   || no "github_create_issue unit tests"
+DRY=$(python3 scripts/github_attach_evidence.py --project "projects/$SLUG" --key "${SLUG}#1" --file /etc/hosts --caption t --dry-run 2>&1)
+echo "$DRY" | grep -qi "dry.run\|DRY RUN" && ok "github_attach_evidence dry-run" || no "github_attach_evidence dry-run (got: $DRY)"
+
 # Template project has no live git/tracker → github_scope must no-op (inactive), not crash.
 OUT=$(python3 scripts/github_scope.py --project "projects/$SLUG" --json 2>/dev/null)
 echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('inactive') is True and d.get('count')==0" \
@@ -897,6 +902,45 @@ OUT=$(bash scripts/qa_scope.sh "$GH_SLUG" --json 2>/dev/null)
 echo "$OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('inactive') is True and d.get('count')==0" \
   && ok "qa_scope.sh github path offline-safe" \
   || no "qa_scope.sh github must be offline-safe (got: $OUT)"
+# Token gate needs owner/repo so inactive skip does not mask missing project token
+python3 - <<PY
+from pathlib import Path
+p = Path("projects/${GH_SLUG}/project.yaml")
+p.write_text(p.read_text() + "  owner: example-org\n  repo: example-repo\n")
+PY
+rm -f "projects/$GH_SLUG/.secrets/github.env"
+ATTACH_EC=0
+ATTACH_OUT=$(python3 scripts/github_attach_evidence.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#1" --file /etc/hosts --caption t 2>&1) || ATTACH_EC=$?
+[[ "$ATTACH_EC" -eq 3 ]] && echo "$ATTACH_OUT" | grep -qi "GITHUB_ATTACH_TOKEN_REQUIRED" \
+  && ok "github_attach_evidence requires project token" \
+  || no "github_attach_evidence must exit 3 without token (got ec=$ATTACH_EC: $ATTACH_OUT)"
+grep_ok "github_attach_evidence\|secret gist" scripts/record_and_attach.sh "record_and_attach routes GitHub via github_attach_evidence"
+# Jira path: require projects/<slug>/.secrets/jira.env — ambient JIRA_* must not attach
+mkdir -p "projects/$SLUG/.secrets"
+cat > "projects/$SLUG/.secrets/server.env" <<EOF
+SERVER_CWD=/tmp
+SERVER_URL=http://localhost:59999
+EOF
+rm -f "projects/$SLUG/.secrets/jira.env"
+REC_STEPS=$(mktemp)
+echo '[]' > "$REC_STEPS"
+REC_EC=0
+REC_OUT=$(
+  JIRA_BASE_URL="https://EVIL.atlassian.net" \
+  JIRA_EMAIL="evil@evil.io" \
+  JIRA_API_TOKEN="evil_tok" \
+  bash scripts/record_and_attach.sh "$SLUG" "TST-1" "$REC_STEPS" "iso" 2>&1
+) || REC_EC=$?
+rm -f "$REC_STEPS"
+[[ "$REC_EC" -ne 0 ]] && echo "$REC_OUT" | grep -qi "jira.env\|ambient JIRA" \
+  && ok "record_and_attach Jira path ignores ambient without jira.env" \
+  || no "record_and_attach must require jira.env (got ec=$REC_EC: $REC_OUT)"
+grep_ok "unset JIRA_BASE_URL JIRA_EMAIL JIRA_API_TOKEN" scripts/record_and_attach.sh \
+  "record_and_attach clears ambient JIRA_* before sourcing jira.env"
+# gh gist create: secret is default; --secret flag removed in modern gh CLI
+! grep -nE '^\s*\["gh", "gist", "create".*--secret' scripts/github_create_issue.py \
+  && ok "secret_gist_upload omits removed --secret flag" \
+  || no "secret_gist_upload must not pass --secret (gh CLI removed it)"
 DRY=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --comment "pass" --dry-run 2>&1)
 echo "$DRY" | grep -qi "dry-run" && ok "github_close_issue dry-run" || no "github_close_issue dry-run"
 DRY=$(python3 scripts/github_return_to_dev.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --reason "x" --steps-tried "- y" --dry-run 2>&1)

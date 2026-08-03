@@ -20,8 +20,8 @@ A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of
    - `needs-human` verdict (ambiguous / policy / destructive) → do NOT auto-close; leave open and surface to the user.
    - Always leave a QA comment with the verdict + evidence.
    - **Recording evidence (ALWAYS, FE *and* BE/infra):** attach a ≤10MB E2E screen recording showing the
-     **customer-side** steps that validate the fix/feature works now — Jira: `scripts/record_and_attach.sh`;
-     GitHub Issues: `github_create_issue.py --attach` / gist on the bug key (or comment on the feature key) —
+     **customer-side** steps that validate the fix/feature works now via `scripts/record_and_attach.sh`
+     (Jira multipart **or** GitHub secret gist — auto-routes by `tracker.provider`) —
      required for every auto-Done and every confirmed bug. Pure-CI/pipeline tickets exempt.
    - **Regression**: a Done ticket that now FAILS → `scripts/reopen_regression.py` (auto-reopen to In Progress).
 2. **Fresh exploratory testing** — pick the next **uncovered or least-covered** area and probe it (rotate so
@@ -210,8 +210,8 @@ Arm/re-arm via `scripts/arm_qa_loop.sh <slug>` so the sleeper prompt carries the
 | 0c | Write 3–5 test steps in `run.md` from **OpenSpec + handoff** (align with persisted TC) | (run.md checklist) |
 | 1 | Two-pass retest on **canonical source** (detail / audit / API) | `retest_attempted=true`, `feature_steps_executed=true` |
 | 2 | `stg_buildid.sh` → MATCH or MATCH_AHEAD (or N/A / SKIP) | `buildid_gate` |
-| 3 | Recording attached (Jira `record_and_attach.sh` / GitHub `--attach` or gist; unless `recording_exempt` pure-CI) | `recording_attached=true` |
-| 3b | **Filed bugs:** screenshot `--attach` + recording on **bug** key | `bug_screenshot_attached=true`, `bug_recording_attached=true` |
+| 3 | `record_and_attach.sh` → tracker (unless `recording_exempt` pure-CI) | `recording_attached=true` |
+| 3b | **Filed bugs:** screenshot `--attach` + `record_and_attach.sh` on **bug** key | `bug_screenshot_attached=true`, `bug_recording_attached=true` |
 | 4 | Tracker transition + comment: **Done** if PASS; return to Dev if FAIL or blocked | `transition` event |
 
 **RETURN_DEV / FAIL** additionally require in `dod_check`: `retest_attempted=true`,
@@ -229,7 +229,7 @@ A ticket in `Validate/Testing` (or GitHub `validate-testing`) must end the tick 
 - manual two-pass on canonical source if automation cannot drive one control
 
 If still blocked:
-1. **File** a separate tracker bug — **`templates/bug-report.md`** with OpenSpec REQ/Scenario, exact steps, screenshot `--attach` via `create_bug_issue.py`, then recording on the new bug key (Jira: `record_and_attach.sh`; GitHub: `--attach` mp4 / gist).
+1. **File** a separate tracker bug — **`templates/bug-report.md`** with OpenSpec REQ/Scenario, exact steps, screenshot `--attach` via `create_bug_issue.py`, then **`record_and_attach.sh`** on the new bug key.
 2. **Return** feature ticket: `jira_return_in_progress.py` + handoff template, or `github_return_to_dev.py --dev-ticket <BUG-KEY>`.
 3. Log `dod_check verdict=FAIL|RETURN_DEV` with `bug_filed`, `bug_recording_attached=true`, `bug_screenshot_attached=true`, `openspec_req=REQ-…`, `dev_handoff=<path>`.
 

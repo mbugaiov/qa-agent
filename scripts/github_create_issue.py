@@ -161,17 +161,27 @@ def ensure_labels_exist(repo_ref: str, labels: list[str], *, env: dict[str, str]
 
 
 def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | None:
-    """Upload evidence as a *secret* gist using the project GH_TOKEN env only."""
+    """Upload evidence as a *secret* gist using the project GH_TOKEN env only.
+
+    Current `gh gist create` defaults to secret; `--secret` was removed (use `--public`
+    only when deliberately sharing). Never pass `--public` for QA evidence.
+    """
     if not os.path.isfile(path):
         return None
     try:
         out = subprocess.check_output(
-            ["gh", "gist", "create", "--secret", path, "--desc", desc[:80]],
+            ["gh", "gist", "create", path, "--desc", desc[:80]],
             text=True,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             env=env,
         ).strip()
-    except (OSError, subprocess.CalledProcessError):
+    except subprocess.CalledProcessError as e:
+        err = (e.stderr or e.stdout or "").strip()
+        if err:
+            print(f"secret gist upload error: {err}", file=sys.stderr)
+        return None
+    except OSError as e:
+        print(f"secret gist upload error: {e}", file=sys.stderr)
         return None
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
     return lines[-1] if lines else None

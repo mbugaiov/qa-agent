@@ -100,6 +100,35 @@ STG buildId: abcdef1234567890 (main abcdef1234567890)
             self.assertNotEqual((cfg.get("tracker") or {}).get("provider"), "github_issues")
             self.assertEqual(tracker_provider(d), "jira")
 
+    def test_fallback_parses_tracker_owner_repo(self) -> None:
+        """CI may lack PyYAML — minimal parser must still read tracker.owner/repo."""
+        import builtins
+
+        real_import = builtins.__import__
+
+        def _no_yaml(name: str, *args: object, **kwargs: object):  # noqa: ANN001
+            if name == "yaml" or name.startswith("yaml."):
+                raise ImportError("forced: no pyyaml")
+            return real_import(name, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
+                fh.write(
+                    "slug: myapp\n"
+                    "tracker:\n"
+                    "  provider: github_issues\n"
+                    "  owner: example-org\n"
+                    "  repo: example-repo\n"
+                )
+            builtins.__import__ = _no_yaml  # type: ignore[assignment]
+            try:
+                self.assertEqual(
+                    resolve_github_repo(d), ("example-org", "example-repo")
+                )
+                self.assertEqual(tracker_provider(d), "github_issues")
+            finally:
+                builtins.__import__ = real_import  # type: ignore[assignment]
+
 
 if __name__ == "__main__":
     unittest.main()

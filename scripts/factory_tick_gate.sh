@@ -302,7 +302,7 @@ def require_bug_tracker_evidence(key, dod, errors):
     if str(dod.get("bug_recording_attached", "")).lower() not in ("true", "1", "yes"):
         errors.append(
             f"{key}: bug {bug_key} requires bug_recording_attached=true "
-            f"(record_and_attach.sh on Jira bug key, or github_create_issue --attach/gist)"
+            f"(record_and_attach.sh on the bug key — Jira or GitHub)"
         )
     if str(dod.get("bug_screenshot_attached", "")).lower() not in ("true", "1", "yes"):
         errors.append(

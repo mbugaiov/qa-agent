@@ -93,7 +93,7 @@ If the project uses factory engineering tickets, label them **`impl-dev`** or **
 | 1 | **Exact steps** | Numbered in `templates/bug-report.md` — same steps as recording |
 | 2 | **Expected vs actual** | **Quote OpenSpec THEN** (or REQ from traceability matrix / `manual-test-plan.md`) |
 | 3 | **Screenshot** | Error state PNG → `--attach` (repeatable for multiple) |
-| 4 | **E2E recording** | After create: `record_and_attach.sh` (Jira) or gist/`--attach` video (GitHub) on the **new** bug key |
+| 4 | **E2E recording** | After create: `record_and_attach.sh <slug> <NEW-KEY> …` (Jira or GitHub — auto-routes) |
 | 5 | **Build / env** | STG buildId, role, URL in description |
 | 6 | **Factory log** | `bug_filed=<KEY>` + `bug_recording_attached=true` + `bug_screenshot_attached=true` in `dod_check` |
 
@@ -127,9 +127,8 @@ python3 scripts/create_bug_issue.py --project projects/<slug> \
 #   create_jira_issue.py     (tracker.provider jira)
 #   github_create_issue.py   (tracker.provider github_issues) — dedupe on by default
 
-# 4. Recording on the NEW bug key (MUST)
-scripts/record_and_attach.sh <slug> <NEW-KEY> <steps.json> "Repro: …"   # Jira
-# GitHub: also --attach the mp4 to github_create_issue, or gist + comment on <slug>#N
+# 4. Recording on the NEW bug key (MUST) — tracker-aware
+scripts/record_and_attach.sh <slug> <NEW-KEY> <steps.json> "Repro: …"
 
 # 5. Ledger
 ./scripts/factory_log.sh <slug> <FEATURE-KEY> dod_check … bug_filed=<NEW-KEY> \
@@ -157,7 +156,7 @@ Auto-set on creation (per `.secrets/jira.env`): **assignee** (`JIRA_ASSIGNEE_ACC
 ## Retest recording evidence (ALWAYS — FE and BE/infra)
 
 Attach a short **E2E recording** to **every** ticket you move to Done (and to every confirmed bug),
-stored **only in Jira**, compressed to **≤10MB**:
+compressed to **≤10MB**, via tracker-aware `record_and_attach.sh` (Jira attachment or GitHub secret gist):
 
 ```
 scripts/record_and_attach.sh <slug> <KEY> <stepsJson> "<caption>"
