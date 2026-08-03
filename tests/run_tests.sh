@@ -582,6 +582,13 @@ EOF
 OUT=$(./scripts/openspec_read.sh "$SLUG" --cap auth 2>&1)
 echo "$OUT" | grep -qi "Auth capability" && ok "openspec_read prints spec excerpt" || no "openspec_read output"
 echo "$OUT" | grep -q "openspec/specs/auth/spec.md" && ok "openspec_read cites spec path" || no "openspec_read path"
+mkdir -p "$OSWT/openspec/changes/ba-fixture/specs/auth"
+printf '# Auth delta\n' > "$OSWT/openspec/changes/ba-fixture/specs/auth/spec.md"
+printf 'Feature: hermes fixture\n  Scenario: ok\n    Then pass\n' > "$OSWT/openspec/changes/ba-fixture/acceptance.feature"
+printf '| FR | SC |\n' > "$OSWT/openspec/changes/ba-fixture/traceability.md"
+OUT=$(./scripts/openspec_read.sh "$SLUG" --change ba-fixture 2>&1)
+echo "$OUT" | grep -q "acceptance.feature" && ok "openspec_read prints Hermes acceptance.feature" || no "openspec_read Hermes acceptance"
+echo "$OUT" | grep -qi "hermes fixture" && ok "openspec_read includes feature body" || no "openspec_read feature body"
 
 echo "== 16. Test-data scripts (offline gating) =="
 have scripts/test_data_prep.sh

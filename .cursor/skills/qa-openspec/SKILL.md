@@ -22,7 +22,8 @@ QA tests a deployed app; **OpenSpec is the oracle** for what correct behaviour m
 
 ```
 1. openspec_read   → scripts/openspec_read.sh <slug> --ticket <KEY> [--change <id>]
-   (prints capability specs **and** Hermes `acceptance.feature` / `traceability.md` when present)
+   (prints capability specs **and** Hermes extras when present:
+   `acceptance.feature`, `traceability.md`, `requirements.md`, `review.md`)
 2. Map REQs        → note governing REQ-IDs + scenario names in run.md test plan
 3. Design check    → does PF/TC assertion match OpenSpec WHEN/THEN? (see below)
 4. Execute retest  → prep → two-pass / automation on canonical source
