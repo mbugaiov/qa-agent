@@ -5,8 +5,10 @@ Mirrors create_jira_issue.py for non-Jira trackers:
   - labels: qa-agent + caller labels; severity-sN; confirmed-defect → impl-dev
   - dedupe open issues by normalized title (default on)
   - optional --related-key comment on the feature ticket
-  - --attach uploads real media to branch qa-evidence (Contents API) via project
-    GITHUB_TOKEN; text-only may still use secret gist. Never ambient-account mix.
+  - --attach converts video → GIF, uploads one media file, and posts an
+    **inline** ``![…](raw-url)`` comment (not opaque MP4 blob packs).
+    Storage is still Contents API (GitHub has no Jira-style attach endpoint);
+    agents must not dump screenshot packs — one GIF (or one PNG) per ticket.
 
 Usage:
     python3 scripts/github_create_issue.py --project projects/<slug> \\
@@ -273,11 +275,10 @@ def github_repo_evidence_upload(
     env: dict[str, str],
     branch: str = EVIDENCE_BRANCH,
 ) -> str | None:
-    """Upload a real binary/text file to ``qa-evidence`` and return the blob URL.
+    """Upload one evidence file and return a **raw** URL for markdown embedding.
 
-    Gists cannot host viewable PNG/MP4 (``gh gist create`` rejects binary; the old
-    ``.b64.txt`` workaround opens as plaintext). Repo Contents API stores the real
-    file; GitHub's blob page renders images and plays short videos when logged in.
+    Prefer a single GIF/PNG that GitHub Issues can render inline via
+    ``![caption](url)``. Avoid linking the blob HTML page (opaque, unreadable).
     """
     if not os.path.isfile(path):
         return None
@@ -348,19 +349,47 @@ def github_repo_evidence_upload(
         payload = json.loads(put.stdout or "{}")
     except json.JSONDecodeError:
         payload = {}
-    html_url = (payload.get("content") or {}).get("html_url") or ""
-    if not html_url:
-        html_url = f"https://github.com/{repo_ref}/blob/{branch}/{rel}"
-    return html_url
+    content = payload.get("content") or {}
+    # Raw URL embeds in issue comments; blob HTML pages do not.
+    raw_url = content.get("download_url") or ""
+    if not raw_url:
+        # Stable collaborator-facing raw form (works when camo can fetch).
+        raw_url = f"https://github.com/{repo_ref}/raw/{branch}/{rel}"
+    return raw_url
+
+
+def prepare_github_media(path: str) -> tuple[str, bool]:
+    """Return (path_to_upload, is_recording_gif).
+
+    Videos are converted to GIF so the issue comment can render them inline.
+    Still images pass through. Callers must not attach MP4 to GitHub Issues.
+    """
+    lower = path.lower()
+    if lower.endswith((".mp4", ".webm", ".mov", ".m4v")):
+        from video_to_gif import convert as video_to_gif_convert
+
+        dest = os.path.splitext(path)[0] + ".gif"
+        video_to_gif_convert(path, dest)
+        return dest, True
+    return path, False
+
+
+def evidence_markdown_line(basename: str, url: str, *, caption: str = "") -> str:
+    """Markdown that **renders** image/GIF inline in the issue comment."""
+    lower = basename.lower()
+    alt = (caption or basename).replace("]", "").replace("\n", " ")[:80]
+    if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+        return f"![{alt}]({url})"
+    if lower.endswith((".mp4", ".webm", ".mov", ".m4v")):
+        # Should not happen after prepare_github_media — keep as last resort link.
+        return f"- [{basename}]({url}) — convert to GIF for inline view"
+    return f"- [{basename}]({url})"
 
 
 def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | None:
     """Upload *text* evidence as a secret gist (project GH_TOKEN only).
 
-    Current `gh gist create` defaults to secret; `--secret` was removed (use `--public`
-    only when deliberately sharing). Never pass `--public` for QA evidence.
-
-    Do **not** use for PNG/MP4 — call ``github_repo_evidence_upload`` instead.
+    Do **not** use for PNG/MP4/GIF — call ``github_repo_evidence_upload`` instead.
     """
     if not os.path.isfile(path):
         return None
@@ -387,17 +416,6 @@ def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | No
         return None
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
     return lines[-1] if lines else None
-
-
-def evidence_markdown_line(basename: str, url: str) -> str:
-    """Markdown that opens the real file on GitHub (blob page), not a .b64.txt gist."""
-    lower = basename.lower()
-    if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
-        # Blob URLs render the image in-browser; raw may 404 camo on private repos.
-        return f"- [{basename}]({url}) — open to view image"
-    if lower.endswith((".mp4", ".webm", ".mov", ".m4v")):
-        return f"- [{basename}]({url}) — open to play / download video"
-    return f"- [{basename}]({url})"
 
 
 def main() -> int:
@@ -531,7 +549,7 @@ def main() -> int:
 
     key = f"{slug}#{num}"
 
-    evidence_lines: list[str] = ["## Evidence attachments", ""]
+    evidence_lines: list[str] = ["## Evidence (inline GIF/PNG in comment)", ""]
     attached_ok = False
     screenshot_ok = False
     recording_ok = False
@@ -540,25 +558,34 @@ def main() -> int:
             print(f"  ! attachment not found: {path}", file=sys.stderr)
             evidence_lines.append(f"- missing: `{path}`")
             continue
-        base = os.path.basename(path)
+        try:
+            upload_path, from_video = prepare_github_media(path)
+        except Exception as e:
+            print(f"  ! media prepare failed for {path}: {e}", file=sys.stderr)
+            evidence_lines.append(f"- prepare failed: `{path}` ({e})")
+            continue
+        base = os.path.basename(upload_path)
         url = github_repo_evidence_upload(
-            path,
+            upload_path,
             owner=owner,
             repo=repo,
             issue_key=key,
             message=f"qa-agent evidence for {key}: {base}",
             env=gh_env,
         )
-        if not url and not _is_media_path(path):
-            url = secret_gist_upload(path, f"qa-agent evidence for {key}", env=gh_env)
+        if not url and not _is_media_path(upload_path):
+            url = secret_gist_upload(upload_path, f"qa-agent evidence for {key}", env=gh_env)
         if url:
             attached_ok = True
             lower = base.lower()
-            if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
-                screenshot_ok = True
-            elif lower.endswith((".mp4", ".webm", ".mov", ".m4v")):
+            if from_video or lower.endswith(".gif"):
                 recording_ok = True
-            evidence_lines.append(evidence_markdown_line(base, url))
+                screenshot_ok = True  # GIF covers both DoD flags for GitHub
+            elif lower.endswith((".png", ".jpg", ".jpeg", ".webp")):
+                screenshot_ok = True
+            evidence_lines.append(
+                evidence_markdown_line(base, url, caption=f"QA evidence {key}")
+            )
             print(f"  attached {base} → {url}")
         else:
             evidence_lines.append(f"- upload failed: `{path}`")
@@ -580,9 +607,9 @@ def main() -> int:
             env=gh_env,
         )
         if screenshot_ok:
-            print("  bug_screenshot_attached=true (qa-evidence branch via project token)")
+            print("  bug_screenshot_attached=true (inline GIF/PNG in issue comment)")
         if recording_ok:
-            print("  bug_recording_attached=true (qa-evidence branch via project token)")
+            print("  bug_recording_attached=true (inline GIF in issue comment)")
         if not attached_ok:
             print(key)
             print(
