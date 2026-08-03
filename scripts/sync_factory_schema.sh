@@ -2,8 +2,8 @@
 # Sync factory/schema.md from projects/_template into a live project.
 #
 # Usage:
-#   scripts/sync_factory_schema.sh <slug>           # full copy (pantheon, qa-debug, …)
-#   scripts/sync_factory_schema.sh lrm --overlay    # keep LRM examples; refresh pointer + required fields
+#   scripts/sync_factory_schema.sh <slug>           # full copy (default)
+#   scripts/sync_factory_schema.sh <slug> --overlay # keep project examples; refresh pointer + required fields
 #
 # Engines ship the canonical schema in _template; live projects must not drift.
 set -euo pipefail
