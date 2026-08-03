@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "sessionStart": [
+      {
+        "command": ".cursor/hooks/qa-pending-session-start.sh"
+      }
+    ],
+    "stop": [
+      {
+        "command": ".cursor/hooks/qa-pending-stop.sh"
+      }
+    ]
+  }
+}

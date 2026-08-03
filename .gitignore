@@ -38,3 +38,4 @@ __pycache__/
 
 # Local CR agent output
 /review.md
+.cursor/qa-pending-execute.json

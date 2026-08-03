@@ -165,12 +165,42 @@ def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | No
 
     Current `gh gist create` defaults to secret; `--secret` was removed (use `--public`
     only when deliberately sharing). Never pass `--public` for QA evidence.
+
+    `gh gist create` rejects binary payloads — wrap non-text evidence as
+    ``<basename>.b64.txt`` (matches prior pantheon QA gists).
     """
     if not os.path.isfile(path):
         return None
+    import base64
+    import tempfile
+
+    upload_path = path
+    tmp_b64: str | None = None
     try:
+        # Detect binary: try UTF-8 decode of a sample, or known media suffixes.
+        lower = path.lower()
+        binary_suffix = lower.endswith(
+            (".mp4", ".webm", ".mov", ".m4v", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf")
+        )
+        if not binary_suffix:
+            try:
+                with open(path, "rb") as fh:
+                    fh.read(4096).decode("utf-8")
+            except UnicodeDecodeError:
+                binary_suffix = True
+        if binary_suffix:
+            with open(path, "rb") as fh:
+                raw = fh.read()
+            fd, tmp_b64 = tempfile.mkstemp(
+                prefix="qa-gist-", suffix=f"-{os.path.basename(path)}.b64.txt"
+            )
+            os.close(fd)
+            with open(tmp_b64, "w", encoding="ascii") as out_fh:
+                out_fh.write(base64.b64encode(raw).decode("ascii"))
+            upload_path = tmp_b64
+
         out = subprocess.check_output(
-            ["gh", "gist", "create", path, "--desc", desc[:80]],
+            ["gh", "gist", "create", upload_path, "--desc", desc[:80]],
             text=True,
             stderr=subprocess.PIPE,
             env=env,
@@ -183,6 +213,12 @@ def secret_gist_upload(path: str, desc: str, *, env: dict[str, str]) -> str | No
     except OSError as e:
         print(f"secret gist upload error: {e}", file=sys.stderr)
         return None
+    finally:
+        if tmp_b64 and os.path.isfile(tmp_b64):
+            try:
+                os.remove(tmp_b64)
+            except OSError:
+                pass
     lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
     return lines[-1] if lines else None
 

@@ -1,0 +1,13 @@
+{
+  "name": "qa-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "qa:kick": "tsx scripts/qa_handoff_kick.ts",
+    "qa:ack": "tsx scripts/ack_qa_pending.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}
