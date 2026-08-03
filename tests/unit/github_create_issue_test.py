@@ -70,6 +70,65 @@ class GithubCreateIssueTest(unittest.TestCase):
                 else:
                     os.environ["GH_TOKEN"] = prev
 
+    def test_attach_without_project_token_exits_3(self) -> None:
+        import subprocess
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
+                fh.write(
+                    "slug: myapp\n"
+                    "tracker:\n  provider: github_issues\n  owner: example-corp\n  repo: my-app\n"
+                    "git:\n  provider: github\n  workspace: example-corp\n  repo: my-app\n"
+                )
+            shot = os.path.join(d, "fail.png")
+            open(shot, "wb").write(b"\x89PNG\r\n\x1a\n")
+            script = os.path.join(ROOT, "scripts", "github_create_issue.py")
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    script,
+                    "--project",
+                    d,
+                    "--summary",
+                    "PF: attach gate",
+                    "--description",
+                    "body",
+                    "--attach",
+                    shot,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(proc.returncode, 3)
+            self.assertIn("GITHUB_ATTACH_TOKEN_REQUIRED", proc.stderr)
+
+
+class CreateBugIssueFilterTest(unittest.TestCase):
+    def test_filter_argv_github_drops_jira_flags(self) -> None:
+        sys.path.insert(0, os.path.join(ROOT, "scripts"))
+        from create_bug_issue import filter_argv, JIRA_ONLY  # noqa: WPS433
+
+        argv = [
+            "--project",
+            "projects/x",
+            "--summary",
+            "t",
+            "--description",
+            "d",
+            "--points",
+            "3",
+            "--related-key",
+            "x#1",
+            "--no-sprint",
+        ]
+        out = filter_argv(argv, drop=JIRA_ONLY)
+        self.assertNotIn("--points", out)
+        self.assertNotIn("3", out)
+        self.assertNotIn("--no-sprint", out)
+        self.assertIn("--related-key", out)
+        self.assertIn("x#1", out)
+
 
 if __name__ == "__main__":
     unittest.main()

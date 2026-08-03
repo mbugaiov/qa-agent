@@ -251,101 +251,83 @@ def main() -> int:
     repo_ref = f"{owner}/{repo}"
     gh_env, has_project_token = project_gh_env(a.project)
 
-    if not a.no_dedupe:
-        hit = find_dedupe_hit(repo_ref, a.summary, env=gh_env)
-        if hit:
-            num = hit.get("number")
-            key = f"{slug}#{num}"
-            url = hit.get("url") or f"https://github.com/{repo_ref}/issues/{num}"
-            print(f"GITHUB_DEDUPE_HIT {key} → {url}")
-            print(key)
-            return 0
-
-    ensure_labels_exist(repo_ref, labels, env=gh_env)
-
-    cmd = [
-        "gh",
-        "issue",
-        "create",
-        "-R",
-        repo_ref,
-        "--title",
-        a.summary,
-        "--body",
-        description or "",
-    ]
-    for lab in labels:
-        cmd.extend(["--label", lab])
-
-    try:
-        created = subprocess.check_output(
-            cmd, text=True, stderr=subprocess.PIPE, env=gh_env
-        ).strip()
-    except subprocess.CalledProcessError as e:
-        print(
-            f"GitHub create failed:\n{e.stderr or e.stdout or e}",
-            file=sys.stderr,
-        )
-        return 1
-
-    # created is usually the HTML URL
-    m = re.search(r"/issues/(\d+)\s*$", created)
-    if not m:
-        m = re.search(r"/issues/(\d+)", created)
-    if not m:
-        print(f"Created but could not parse issue number from: {created}", file=sys.stderr)
-        return 2
-    num = int(m.group(1))
-    key = f"{slug}#{num}"
-    url = created if created.startswith("http") else f"https://github.com/{repo_ref}/issues/{num}"
-    print(f"Created {key} → {url}")
-
-    # Evidence: secret gist via *project* GH_TOKEN only (never ambient-account gist mix).
-    evidence_lines: list[str] = ["## Evidence attachments", ""]
-    attached_ok = False
+    # Fail before create when evidence was requested without a project token —
+    # otherwise a retry hits dedupe and never uploads.
     if a.attach and not has_project_token:
         print(
-            "  ! --attach skipped upload: set GITHUB_TOKEN in "
-            f"{a.project}/.secrets/github.env (project token required; ambient gh ignored)",
-            file=sys.stderr,
-        )
-        for path in a.attach:
-            evidence_lines.append(f"- local path (not uploaded): `{path}`")
-        # Comment paths, then fail so unattended DoD cannot treat create as evidence-complete
-        subprocess.run(
-            [
-                "gh",
-                "issue",
-                "comment",
-                str(num),
-                "-R",
-                repo_ref,
-                "--body",
-                "\n".join(evidence_lines),
-            ],
-            check=False,
-            env=gh_env,
-        )
-        print(key)
-        print(
-            "GITHUB_ATTACH_TOKEN_REQUIRED — issue created but evidence not uploaded",
+            "GITHUB_ATTACH_TOKEN_REQUIRED — set GITHUB_TOKEN in "
+            f"{a.project}/.secrets/github.env before --attach",
             file=sys.stderr,
         )
         return 3
-    for path in a.attach if has_project_token else []:
+
+    num: int | None = None
+    url = ""
+    if not a.no_dedupe:
+        hit = find_dedupe_hit(repo_ref, a.summary, env=gh_env)
+        if hit:
+            num = int(hit["number"])
+            url = str(hit.get("url") or f"https://github.com/{repo_ref}/issues/{num}")
+            print(f"GITHUB_DEDUPE_HIT {slug}#{num} → {url}")
+            if not a.attach:
+                print(f"{slug}#{num}")
+                return 0
+
+    if num is None:
+        ensure_labels_exist(repo_ref, labels, env=gh_env)
+        cmd = [
+            "gh",
+            "issue",
+            "create",
+            "-R",
+            repo_ref,
+            "--title",
+            a.summary,
+            "--body",
+            description or "",
+        ]
+        for lab in labels:
+            cmd.extend(["--label", lab])
+        try:
+            created = subprocess.check_output(
+                cmd, text=True, stderr=subprocess.PIPE, env=gh_env
+            ).strip()
+        except subprocess.CalledProcessError as e:
+            print(
+                f"GitHub create failed:\n{e.stderr or e.stdout or e}",
+                file=sys.stderr,
+            )
+            return 1
+        m = re.search(r"/issues/(\d+)\s*$", created) or re.search(r"/issues/(\d+)", created)
+        if not m:
+            print(f"Created but could not parse issue number from: {created}", file=sys.stderr)
+            return 2
+        num = int(m.group(1))
+        url = created if created.startswith("http") else f"https://github.com/{repo_ref}/issues/{num}"
+        print(f"Created {slug}#{num} → {url}")
+
+    key = f"{slug}#{num}"
+
+    evidence_lines: list[str] = ["## Evidence attachments", ""]
+    attached_ok = False
+    screenshot_ok = False
+    recording_ok = False
+    for path in a.attach:
         if not os.path.isfile(path):
             print(f"  ! attachment not found: {path}", file=sys.stderr)
             evidence_lines.append(f"- missing: `{path}`")
             continue
-        gist_url = secret_gist_upload(
-            path, f"qa-agent evidence for {key}", env=gh_env
-        )
+        gist_url = secret_gist_upload(path, f"qa-agent evidence for {key}", env=gh_env)
         base = os.path.basename(path)
         if gist_url:
             attached_ok = True
             lower = base.lower()
             if lower.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp")):
+                screenshot_ok = True
                 evidence_lines.append(f"- ![{base}]({gist_url})")
+            elif lower.endswith((".mp4", ".webm", ".mov", ".m4v")):
+                recording_ok = True
+                evidence_lines.append(f"- [{base}]({gist_url})")
             else:
                 evidence_lines.append(f"- [{base}]({gist_url})")
             print(f"  attached {base} → secret gist {gist_url}")
@@ -368,23 +350,17 @@ def main() -> int:
             check=False,
             env=gh_env,
         )
-        if attached_ok:
-            if any(
-                os.path.basename(p).lower().endswith(
-                    (".png", ".jpg", ".jpeg", ".gif", ".webp")
-                )
-                for p in a.attach
-                if os.path.isfile(p)
-            ):
-                print("  bug_screenshot_attached=true (secret gist via project token)")
-            if any(
-                os.path.basename(p).lower().endswith(
-                    (".mp4", ".webm", ".mov", ".m4v")
-                )
-                for p in a.attach
-                if os.path.isfile(p)
-            ):
-                print("  bug_recording_attached=true (secret gist via project token)")
+        if screenshot_ok:
+            print("  bug_screenshot_attached=true (secret gist via project token)")
+        if recording_ok:
+            print("  bug_recording_attached=true (secret gist via project token)")
+        if not attached_ok:
+            print(key)
+            print(
+                "GITHUB_ATTACH_UPLOAD_FAILED — issue exists but no evidence uploaded",
+                file=sys.stderr,
+            )
+            return 3
 
     related_num = parse_related_number(a.related_key) if a.related_key else None
     if related_num:
@@ -411,7 +387,6 @@ def main() -> int:
         )
         print(f"  related comment → #{related_num}")
 
-    # Capture line (parity with create_jira_issue.py)
     print(key)
     return 0
 
