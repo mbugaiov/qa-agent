@@ -19,10 +19,10 @@ A recurring QA loop tick is NOT only ticket re-validation. Each tick does all of
      leave **In Progress** with a note. Never drop In Progress tickets — they stay in scope until Done/Closed.
    - `needs-human` verdict (ambiguous / policy / destructive) → do NOT auto-close; leave open and surface to the user.
    - Always leave a QA comment with the verdict + evidence.
-   - **Recording evidence (ALWAYS, FE *and* BE/infra):** attach a ≤10MB E2E screen recording showing the
-     **customer-side** steps that validate the fix/feature works now via `scripts/record_and_attach.sh`
-     (Jira multipart **or** GitHub secret gist — auto-routes by `tracker.provider`) —
-     required for every auto-Done and every confirmed bug. Pure-CI/pipeline tickets exempt.
+   - **Recording evidence (ALWAYS, FE *and* BE/infra):** attach E2E proof via `scripts/record_and_attach.sh`
+     (Jira: MP4 ≤10MB multipart; **GitHub: one inline GIF** in the issue comment — never secret-gist
+     media or opaque `qa-evidence` packs) — required for every auto-Done and every confirmed bug.
+     Pure-CI/pipeline tickets exempt.
    - **Regression**: a Done ticket that now FAILS → `scripts/reopen_regression.py` (auto-reopen to In Progress).
 2. **Fresh exploratory testing** — pick the next **uncovered or least-covered** area and probe it (rotate so
    coverage broadens every tick, not the same pages). Track covered areas in `run.md` so ticks don't repeat.
