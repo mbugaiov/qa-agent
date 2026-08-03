@@ -17,6 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 from github_tracker import github_repo, pickup_label, validate_label  # noqa: E402
+from verdict_review_require import require_verdict_review_pass  # noqa: E402
 
 
 def parse_key(key: str) -> int:
@@ -34,11 +35,23 @@ def main() -> int:
     ap.add_argument("--steps-tried", required=True)
     ap.add_argument("--dev-ticket", default="")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--allow-missing-verdict-review",
+        action="store_true",
+        help="Escape hatch only — do not use in normal factory ticks",
+    )
     a = ap.parse_args()
 
     num = parse_key(a.key)
     vlabel = validate_label(a.project)
     plabel = pickup_label(a.project)
+
+    if not a.dry_run:
+        require_verdict_review_pass(
+            a.project,
+            a.key,
+            allow_missing=a.allow_missing_verdict_review,
+        )
 
     lines = [
         "QA RETURN",

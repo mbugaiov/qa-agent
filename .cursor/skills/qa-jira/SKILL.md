@@ -181,6 +181,9 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
    **MISMATCH_BEHIND** ⇒ do NOT Done; comment expected-vs-actual. (Skip only when the project has no `STG_URL`.)
 3. Mandatory **E2E recording** attached (pure-CI/pipeline tickets exempt).
 4. Verdict is not `needs-human` (ambiguous requirement / policy uncertainty / destructive → leave open, surface to user).
+5. **Verdict review** (skill `qa-verdict-review`): write `verdict-review-<KEY>.md` → `check_verdict_review.sh` →
+   ledger `verdict_review=pass` **before** `jira_close_issue.py` / `github_close_issue.py`. Those scripts **exit 4**
+   without the ledger pass (`--allow-missing-verdict-review` escape hatch only).
 
 Log a terminal `dod_check` per scope ticket and pass `factory_tick_gate.sh` before `tick_end` (skill `qa-loop`, `factory/schema.md`). **Forbidden at tick_end:** `PARTIAL`, `DEFERRED`, `BLOCKED`, comments-only “PASS (recording pending)”. V/T tickets with blockers must use `RETURN_DEV` or `FAIL` **and** transition to In Progress same tick.
 

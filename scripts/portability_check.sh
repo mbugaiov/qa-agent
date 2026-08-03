@@ -16,6 +16,7 @@ PATHS=(
   scripts
   templates
   tests
+  projects/_template
   AGENTS.md
   PORTABILITY.md
   SETUP.md

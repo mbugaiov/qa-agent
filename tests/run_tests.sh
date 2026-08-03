@@ -416,6 +416,25 @@ GATE_VR=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_VR_EC=$?
   && ok "factory_tick_gate opens with verdict_review=pass" \
   || no "factory_tick_gate should open after verdict_review"
 
+# Bullet "None." must pass (agents often write "- None.")
+printf '%s\n' '## Summary' 'ok' '' '## Blocking gaps' '- None.' '' '## Suggestions' '- None.' >"/tmp/vr-bullet-none.md"
+./scripts/check_verdict_review.sh /tmp/vr-bullet-none.md >/dev/null \
+  && ok "check_verdict_review accepts - None." \
+  || no "check_verdict_review should accept bulleted None"
+have scripts/verdict_review_require.py
+have scripts/sync_factory_schema.sh
+chmod +x scripts/sync_factory_schema.sh
+VR_MISS=$(python3 scripts/verdict_review_require.py --project "projects/$SLUG" --key TST-NOVR 2>&1); VR_MISS_EC=$?
+[[ "$VR_MISS_EC" -eq 4 ]] && echo "$VR_MISS" | grep -qi "VERDICT_REVIEW_REQUIRED" \
+  && ok "verdict_review_require blocks missing ledger" \
+  || no "verdict_review_require should exit 4 (got ec=$VR_MISS_EC: $VR_MISS)"
+./scripts/factory_log.sh "$SLUG" TST-NOVR dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true verdict_review=pass >/dev/null
+python3 scripts/verdict_review_require.py --project "projects/$SLUG" --key TST-NOVR >/dev/null \
+  && ok "verdict_review_require OK after dod_check pass" \
+  || no "verdict_review_require should pass with ledger"
+grep_ok "verdict_review" projects/_template/factory/schema.md "template schema documents verdict_review"
+grep_ok "Close scripts refuse" projects/_template/factory/schema.md "template schema documents close hard gate"
+
 # Regression: after real work, a correct rescan to count=0 must still require backlog_drained
 # (completed keys drop off the latest scope_check — detection must use the union of all scans).
 # Sleep so tick_start ts is strictly after the prior tick's backlog_drained (ledger ts is 1s resolution).
@@ -877,6 +896,20 @@ DRY=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key 
 echo "$DRY" | grep -qi "dry-run" && ok "github_close_issue dry-run" || no "github_close_issue dry-run"
 DRY=$(python3 scripts/github_return_to_dev.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --reason "x" --steps-tried "- y" --dry-run 2>&1)
 echo "$DRY" | grep -q "QA RETURN" && ok "github_return_to_dev dry-run" || no "github_return_to_dev dry-run"
+# Live close without ledger must fail before calling gh
+CLOSE_BLOCK=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --comment "pass" 2>&1); CLOSE_BLOCK_EC=$?
+[[ "$CLOSE_BLOCK_EC" -eq 4 ]] && echo "$CLOSE_BLOCK" | grep -qi "VERDICT_REVIEW_REQUIRED" \
+  && ok "github_close_issue blocks without verdict_review" \
+  || no "github_close_issue must require verdict_review (got ec=$CLOSE_BLOCK_EC: $CLOSE_BLOCK)"
+RET_BLOCK=$(python3 scripts/github_return_to_dev.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --reason "x" --steps-tried "- y" 2>&1); RET_BLOCK_EC=$?
+[[ "$RET_BLOCK_EC" -eq 4 ]] && echo "$RET_BLOCK" | grep -qi "VERDICT_REVIEW_REQUIRED" \
+  && ok "github_return_to_dev blocks without verdict_review" \
+  || no "github_return_to_dev must require verdict_review (got ec=$RET_BLOCK_EC: $RET_BLOCK)"
+# With ledger pass, require helper opens (gh itself not invoked here)
+./scripts/factory_log.sh "$GH_SLUG" "${GH_SLUG}#99" dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true verdict_review=pass >/dev/null
+python3 scripts/verdict_review_require.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" >/dev/null \
+  && ok "github path ledger unlocks verdict_review_require" \
+  || no "github path should unlock after dod_check"
 grep_ok "qa_scope.sh" .cursor/skills/qa-loop/SKILL.md "qa-loop skill references qa_scope.sh"
 rm -rf "projects/$GH_SLUG"
 
