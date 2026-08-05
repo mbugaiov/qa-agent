@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for acceptance smoke pack gate (pantheon#91)."""
+"""Unit tests for acceptance smoke pack gate (app#91-style DoD)."""
 from __future__ import annotations
 
 import json

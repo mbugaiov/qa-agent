@@ -45,7 +45,7 @@ alwaysApply: false
   - **`needs-human`**: ambiguous requirement, policy uncertainty, or destructive/irreversible action → do NOT auto-close/auto-act; leave the ticket and surface it to the user.
 - Never commit secrets — they live in gitignored `projects/<slug>/.secrets/`.
 - Report is not "done" until full acceptance coverage exists — smoke passing ≠ accepted.
-- **Automatable defect classes → automated check before Done:** when the bug class is automatable (broken asset URL / HTTP 404, undersized marks/icons, orphan map/legend UI, invented KPI panels, wrong route framing, missing buildId), Argus MUST add/extend a Playwright assert in `projects/<slug>/automation/specs/` (prefer `acceptance-smoke.spec.js`) in the **same tick**, run it green on STG, and log `smoke_pack=pass`. Markdown TC alone is insufficient. When the acceptance smoke pack file exists, `factory_tick_gate.sh` and `jira_close_issue.py` / `github_close_issue.py` block Done without `smoke_pack=pass`.
+- **Automatable defect classes → automated check before Done:** when the bug class is automatable (broken asset URL / HTTP 404, undersized icons, orphan UI chrome, invented metrics, wrong route framing, missing buildId), Argus MUST add/extend a Playwright assert in `projects/<slug>/automation/specs/` (prefer `acceptance-smoke.spec.js`) in the **same tick**, run it green on STG, and log `smoke_pack=pass`. Markdown TC alone is insufficient. When the acceptance smoke pack file exists, `factory_tick_gate.sh` and `jira_close_issue.py` / `github_close_issue.py` block Done without `smoke_pack=pass`.
 
 Procedural how-to lives in skills: `qa-runs`, `qa-phases`, `qa-loop`, `qa-openspec`, `qa-server`, `qa-jira`
 (under `qa-agent/.cursor/skills/`). The portable spine is `qa-agent/AGENTS.md`.

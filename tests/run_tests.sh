@@ -416,6 +416,26 @@ GATE_VR=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_VR_EC=$?
   && ok "factory_tick_gate opens with verdict_review=pass" \
   || no "factory_tick_gate should open after verdict_review"
 
+# Acceptance smoke pack on Done (mirror verdict_review gate coverage)
+mkdir -p "projects/$SLUG/automation/specs"
+echo "// pack" > "projects/$SLUG/automation/specs/acceptance-smoke.spec.js"
+sleep 1
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-smoke-pack >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-SMOKE count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-SMOKE handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-SMOKE --title "Selftest smoke pack" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-SMOKE dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true verdict_review=pass >/dev/null
+GATE_SM=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_SM_EC=$?
+[[ "$GATE_SM_EC" -ne 0 ]] && echo "$GATE_SM" | grep -qi "smoke_pack" \
+  && ok "factory_tick_gate requires smoke_pack on DONE when pack exists" \
+  || no "factory_tick_gate smoke_pack (got ec=$GATE_SM_EC: $GATE_SM)"
+./scripts/factory_log.sh "$SLUG" TST-SMOKE dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true verdict_review=pass smoke_pack=pass >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=0 >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" >/dev/null \
+  && ok "factory_tick_gate opens with smoke_pack=pass" \
+  || no "factory_tick_gate should open after smoke_pack=pass"
+rm -f "projects/$SLUG/automation/specs/acceptance-smoke.spec.js"
+
 # Bullet "None." must pass (agents often write "- None.")
 printf '%s\n' '## Summary' 'ok' '' '## Blocking gaps' '- None.' '' '## Suggestions' '- None.' >"/tmp/vr-bullet-none.md"
 ./scripts/check_verdict_review.sh /tmp/vr-bullet-none.md >/dev/null \

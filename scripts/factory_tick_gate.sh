@@ -425,12 +425,21 @@ for key in scope_keys:
                 assert spec.loader is not None
                 spec.loader.exec_module(smoke_mod)
                 break
-        if smoke_mod and smoke_mod.pack_exists(str(project_dir)):
+        pack_present = (
+            (project_dir / "automation" / "specs" / "acceptance-smoke.spec.js").is_file()
+            or (project_dir / "automation" / "SMOKE_PACK").is_file()
+        )
+        if pack_present:
             tick_events = list(events)
             for ev in loop_events:
                 if since_tick(ev) and ev.get("event") == "smoke_pack":
                     tick_events.append(ev)
-            if not smoke_mod.has_smoke_pack_pass(tick_events, dod):
+            if smoke_mod is None:
+                errors.append(
+                    f"{key}: DONE — acceptance smoke pack exists but smoke_pack_require.py "
+                    f"could not be loaded from engine scripts/"
+                )
+            elif not smoke_mod.has_smoke_pack_pass(tick_events, dod):
                 errors.append(
                     f"{key}: DONE requires smoke_pack=pass when acceptance smoke pack exists "
                     f"(run_automation.sh --suite acceptance-smoke.spec.js; "
