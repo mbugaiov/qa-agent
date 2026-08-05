@@ -124,7 +124,7 @@ def require_smoke_pack_pass(
         f"SMOKE_PACK_REQUIRED {key}: acceptance smoke pack exists ({pack}) "
         f"but ledger has no smoke_pack=pass — run "
         f"`scripts/run_automation.sh <slug> --stg --suite acceptance-smoke.spec.js` "
-        f"then `factory_log … smoke_pack result=pass` (or dod_check smoke_pack=pass). "
+        f"factory_log <slug> <KEY> smoke_pack result=pass (or dod_check smoke_pack=pass). "
         f"Done blocked.",
         file=sys.stderr,
     )
