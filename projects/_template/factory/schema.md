@@ -24,6 +24,7 @@ Each line is one JSON object (JSONL). All events include:
 | `tc_linked` | Ticket mapped to persisted regression TC | `{ "tc_id": "TC-RQ-1", "path": "test-cases/…", "created": true \| "existing": true }` |
 | `dod_check` | **Per scope ticket before tick_end** | See **DoD gate** below |
 | `verdict_review` | Before Done/FAIL/RETURN (skill `qa-verdict-review`) | `{ "result": "pass", "artifact": "runs/…/verdict-review-<KEY>.md" }` |
+| `smoke_pack` | Before Done when acceptance smoke pack exists | `{ "result": "pass", "suite": "acceptance-smoke.spec.js" }` on the **ticket** ledger (same as `verdict_review`) — also `dod_check smoke_pack=pass` |
 | `backlog_drained` | Final step before `tick_end` when real work happened | `{ "count": N }` — proof `jira_scope.sh` was re-run after resolving and the queue was checked again |
 | `recording_attached` | E2E clip attached to ticket | `{ "caption": "…" }` |
 | `tick_end` | End of tick (after gate passes) | `{ "run", "scope_count", "gate": "open" }` |
@@ -77,6 +78,7 @@ Exit **0** = gate open → safe to log `tick_end`. Exit **1** = gate closed → 
 | `qa_work_done` | `QA_CONTINUE` | `true` — proves charter slice executed (not monitor-only) |
 | `openspec_read` | `QA_CONTINUE`, `FAIL`, `RETURN_DEV`, **`DONE`** | `true` — after `openspec_read.sh`; expected behaviour from OpenSpec THEN |
 | `verdict_review` | `DONE`, `FAIL`, `RETURN_DEV` | `pass` / `true` — after skill `qa-verdict-review` + `check_verdict_review.sh` (or separate `verdict_review` event with `result=pass`) |
+| `smoke_pack` | `DONE` when `automation/specs/acceptance-smoke.spec.js` (or `SMOKE_PACK` marker) exists | `pass` — green STG run of the acceptance smoke pack; or `factory_log … smoke_pack result=pass`. Close scripts (`jira_close_issue.py` / `github_close_issue.py`) exit **5** without it. |
 | `dev_handoff` | `FAIL`, `RETURN_DEV` | path to `retest-fail-<KEY>.md` posted to Jira |
 | `recording_exempt` | pure-CI tickets | `true` |
 | `retest_attempted` | `FAIL`, `RETURN_DEV`, `DONE` | `true` — feature-specific steps were run (smoke alone insufficient) |

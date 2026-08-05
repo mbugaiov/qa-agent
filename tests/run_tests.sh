@@ -416,6 +416,26 @@ GATE_VR=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_VR_EC=$?
   && ok "factory_tick_gate opens with verdict_review=pass" \
   || no "factory_tick_gate should open after verdict_review"
 
+# Acceptance smoke pack on Done (mirror verdict_review gate coverage)
+mkdir -p "projects/$SLUG/automation/specs"
+echo "// pack" > "projects/$SLUG/automation/specs/acceptance-smoke.spec.js"
+sleep 1
+./scripts/factory_log.sh "$SLUG" _loop tick_start run=gate-smoke-pack >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop scope_check keys=TST-SMOKE count=1 >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-SMOKE handoff_read >/dev/null
+./scripts/ticket_tc.sh "$SLUG" TST-SMOKE --title "Selftest smoke pack" "${TC_META[@]}" >/dev/null
+./scripts/factory_log.sh "$SLUG" TST-SMOKE dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true verdict_review=pass >/dev/null
+GATE_SM=$(./scripts/factory_tick_gate.sh "$SLUG" 2>&1); GATE_SM_EC=$?
+[[ "$GATE_SM_EC" -ne 0 ]] && echo "$GATE_SM" | grep -qi "smoke_pack" \
+  && ok "factory_tick_gate requires smoke_pack on DONE when pack exists" \
+  || no "factory_tick_gate smoke_pack (got ec=$GATE_SM_EC: $GATE_SM)"
+./scripts/factory_log.sh "$SLUG" TST-SMOKE dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true verdict_review=pass smoke_pack=pass >/dev/null
+./scripts/factory_log.sh "$SLUG" _loop backlog_drained count=0 >/dev/null
+./scripts/factory_tick_gate.sh "$SLUG" >/dev/null \
+  && ok "factory_tick_gate opens with smoke_pack=pass" \
+  || no "factory_tick_gate should open after smoke_pack=pass"
+rm -f "projects/$SLUG/automation/specs/acceptance-smoke.spec.js"
+
 # Bullet "None." must pass (agents often write "- None.")
 printf '%s\n' '## Summary' 'ok' '' '## Blocking gaps' '- None.' '' '## Suggestions' '- None.' >"/tmp/vr-bullet-none.md"
 ./scripts/check_verdict_review.sh /tmp/vr-bullet-none.md >/dev/null \
@@ -868,6 +888,9 @@ have scripts/qa_handoff.sh
 python3 tests/unit/github_tracker_test.py -q 2>/dev/null \
   && ok "github_tracker unit tests" \
   || no "github_tracker unit tests"
+python3 tests/unit/smoke_pack_require_test.py -q 2>/dev/null \
+  && ok "smoke_pack_require unit tests" \
+  || no "smoke_pack_require unit tests"
 python3 tests/unit/github_create_issue_test.py -q 2>/dev/null \
   && ok "github_create_issue unit tests" \
   || no "github_create_issue unit tests"
@@ -988,6 +1011,22 @@ RET_BLOCK=$(python3 scripts/github_return_to_dev.py --project "projects/$GH_SLUG
 python3 scripts/verdict_review_require.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" >/dev/null \
   && ok "github path ledger unlocks verdict_review_require" \
   || no "github path should unlock after dod_check"
+# Acceptance smoke pack gate: pack file present → Done needs smoke_pack=pass
+mkdir -p "projects/$GH_SLUG/automation/specs"
+echo "// pack" > "projects/$GH_SLUG/automation/specs/acceptance-smoke.spec.js"
+SMOKE_BLOCK=$(python3 scripts/smoke_pack_require.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" 2>&1); SMOKE_BLOCK_EC=$?
+[[ "$SMOKE_BLOCK_EC" -eq 5 ]] && echo "$SMOKE_BLOCK" | grep -qi "SMOKE_PACK_REQUIRED" \
+  && ok "smoke_pack_require blocks Done without smoke_pack=pass" \
+  || no "smoke_pack_require should exit 5 when pack exists (got ec=$SMOKE_BLOCK_EC: $SMOKE_BLOCK)"
+CLOSE_SMOKE=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" --comment "pass" 2>&1); CLOSE_SMOKE_EC=$?
+[[ "$CLOSE_SMOKE_EC" -eq 5 ]] && echo "$CLOSE_SMOKE" | grep -qi "SMOKE_PACK_REQUIRED" \
+  && ok "github_close_issue blocks without smoke_pack when pack exists" \
+  || no "github_close_issue must exit 5 for missing smoke_pack (got ec=$CLOSE_SMOKE_EC: $CLOSE_SMOKE)"
+./scripts/factory_log.sh "$GH_SLUG" "${GH_SLUG}#99" dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true verdict_review=pass smoke_pack=pass >/dev/null
+python3 scripts/smoke_pack_require.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" >/dev/null \
+  && ok "smoke_pack_require OK after dod_check smoke_pack=pass" \
+  || no "smoke_pack_require should pass with ledger"
+grep_ok "smoke_pack" projects/_template/factory/schema.md "template schema documents smoke_pack"
 grep_ok "qa_scope.sh" .cursor/skills/qa-loop/SKILL.md "qa-loop skill references qa_scope.sh"
 grep_ok "github_create_issue" .cursor/skills/qa-loop/SKILL.md "qa-loop documents github_create_issue"
 grep_ok "create_bug_issue" .cursor/skills/qa-jira/SKILL.md "qa-jira documents create_bug_issue router"

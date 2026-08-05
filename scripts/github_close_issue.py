@@ -17,6 +17,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 from github_tracker import done_label, github_repo, validate_label  # noqa: E402
+from smoke_pack_require import require_smoke_pack_pass  # noqa: E402
 from verdict_review_require import require_verdict_review_pass  # noqa: E402
 
 
@@ -38,6 +39,11 @@ def main() -> int:
         action="store_true",
         help="Escape hatch only — do not use in normal factory ticks",
     )
+    ap.add_argument(
+        "--allow-missing-smoke-pack",
+        action="store_true",
+        help="Escape hatch only — skip acceptance-smoke pack gate when pack exists",
+    )
     a = ap.parse_args()
 
     num = parse_key(a.key)
@@ -49,6 +55,11 @@ def main() -> int:
             a.project,
             a.key,
             allow_missing=a.allow_missing_verdict_review,
+        )
+        require_smoke_pack_pass(
+            a.project,
+            a.key,
+            allow_missing=a.allow_missing_smoke_pack,
         )
 
     if a.dry_run:

@@ -414,6 +414,33 @@ for key in scope_keys:
         if not dod.get("openspec_read"):
             errors.append(f"{key}: DONE requires openspec_read=true (spec authority checked)")
         require_verdict_review(key, events, dod, verdict, errors)
+        # Acceptance smoke pack — shared helper (same contract as close scripts).
+        import importlib.util
+        smoke_mod = None
+        for root_try in (project_dir.parent.parent, project_dir.parent.parent.parent):
+            helper = root_try / "scripts" / "smoke_pack_require.py"
+            if helper.is_file():
+                spec = importlib.util.spec_from_file_location("smoke_pack_require", helper)
+                smoke_mod = importlib.util.module_from_spec(spec)
+                assert spec.loader is not None
+                spec.loader.exec_module(smoke_mod)
+                break
+        pack_present = (
+            (project_dir / "automation" / "specs" / "acceptance-smoke.spec.js").is_file()
+            or (project_dir / "automation" / "SMOKE_PACK").is_file()
+        )
+        if pack_present:
+            if smoke_mod is None:
+                errors.append(
+                    f"{key}: DONE — acceptance smoke pack exists but smoke_pack_require.py "
+                    f"could not be loaded from engine scripts/"
+                )
+            elif not smoke_mod.has_smoke_pack_pass(events, dod):
+                errors.append(
+                    f"{key}: DONE requires smoke_pack=pass when acceptance smoke pack exists "
+                    f"(run_automation.sh --suite acceptance-smoke.spec.js; "
+                    f"factory_log <slug> <KEY> smoke_pack result=pass or dod_check smoke_pack=pass)"
+                )
 
     handoff_status = ticket_handoff_status(key)
     if handoff_status:

@@ -208,6 +208,9 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
 5. **Verdict review** (skill `qa-verdict-review`): write `verdict-review-<KEY>.md` → `check_verdict_review.sh` →
    ledger `verdict_review=pass` **before** `jira_close_issue.py` / `github_close_issue.py`. Those scripts **exit 4**
    without the ledger pass (`--allow-missing-verdict-review` escape hatch only).
+6. **Acceptance smoke pack** (when `projects/<slug>/automation/specs/acceptance-smoke.spec.js` or `SMOKE_PACK`
+   marker exists): green STG run + ledger `smoke_pack=pass` (or `factory_log … smoke_pack result=pass`).
+   Close scripts **exit 5** without it (`--allow-missing-smoke-pack` escape hatch only).
 
 Log a terminal `dod_check` per scope ticket and pass `factory_tick_gate.sh` before `tick_end` (skill `qa-loop`, `factory/schema.md`). **Forbidden at tick_end:** `PARTIAL`, `DEFERRED`, `BLOCKED`, comments-only “PASS (recording pending)”. V/T tickets with blockers must use `RETURN_DEV` or `FAIL` **and** transition to In Progress same tick.
 

@@ -248,7 +248,7 @@ If still blocked:
 
 | Verdict | Required fields |
 |---------|-----------------|
-| `DONE` | `two_pass=true`, `canonical_source=true`, `buildid_gate`, `recording_attached=true` (or `recording_exempt=true`), `retest_attempted=true`, `feature_steps_executed=true`, **`openspec_read=true`** |
+| `DONE` | `two_pass=true`, `canonical_source=true`, `buildid_gate`, `recording_attached=true` (or `recording_exempt=true`), `retest_attempted=true`, `feature_steps_executed=true`, **`openspec_read=true`**; when acceptance smoke pack exists also **`smoke_pack=pass`** |
 | `FAIL` | `bug_filed`, **`bug_recording_attached=true`**, **`bug_screenshot_attached=true`**, **`openspec_req` or `openspec_scenario`**, `transition`, `openspec_read=true`, `dev_handoff`, `retest_attempted=true`, `feature_steps_executed=true` |
 | `RETURN_DEV` | `bug_filed` or `dev_ticket`, **`bug_recording_attached=true`**, **`bug_screenshot_attached=true`**, **`openspec_req` or `openspec_scenario`**, `transition`, `openspec_read=true`, `retest_attempted=true`, `alternate_locators_tried=true`, `feature_steps_executed=true` |
 | `QA_CONTINUE` | `openspec_read=true`, `qa_work_done=true`, `charter_slice`, `charter_artifact`, `jira_status` matches handoff |
