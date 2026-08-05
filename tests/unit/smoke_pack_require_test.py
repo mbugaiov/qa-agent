@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Unit tests for acceptance smoke pack gate (app#91-style DoD)."""
+"""Unit tests for acceptance smoke pack gate (myapp#1-style DoD)."""
 from __future__ import annotations
 
 import json
@@ -34,7 +34,7 @@ class SmokePackRequireTest(unittest.TestCase):
                 fh.write("// pack\n")
             self.assertTrue(pack_exists(d))
             with self.assertRaises(SystemExit) as cm:
-                require_smoke_pack_pass(d, "app#91")
+                require_smoke_pack_pass(d, "myapp#1")
             self.assertEqual(cm.exception.code, 5)
 
     def test_dod_smoke_pack_pass(self) -> None:
@@ -59,12 +59,12 @@ class SmokePackRequireTest(unittest.TestCase):
                 fh.write("// pack\n")
             os.makedirs(os.path.join(d, "factory", "runs"))
             with open(
-                os.path.join(d, "factory", "runs", "app#91.jsonl"),
+                os.path.join(d, "factory", "runs", "myapp#1.jsonl"),
                 "w",
                 encoding="utf-8",
             ) as fh:
                 fh.write(json.dumps(events[0]) + "\n")
-            require_smoke_pack_pass(d, "app#91")  # no raise
+            require_smoke_pack_pass(d, "myapp#1")  # no raise
 
 
 if __name__ == "__main__":
