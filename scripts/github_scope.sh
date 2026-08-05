@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# GitHub Issues QA scope (validate-testing).
+# GitHub Issues QA scope.
+# Priority: open validate-testing (handoff retests); if empty → open impl-qa charters.
 # Usage: scripts/github_scope.sh <slug> [--log] [--shell] [--json]
 set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

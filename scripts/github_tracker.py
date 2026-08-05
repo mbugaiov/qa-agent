@@ -158,6 +158,15 @@ def validate_label(project_dir: str) -> str:
     return "validate-testing"
 
 
+def impl_qa_label(project_dir: str) -> str:
+    """QA-owned charter queue (Argus). Distinct from Hephaestus validate-testing."""
+    cfg = load_project_yaml(project_dir)
+    t = cfg.get("tracker") or {}
+    if isinstance(t, dict) and t.get("impl_qa_label"):
+        return str(t["impl_qa_label"])
+    return "impl-qa"
+
+
 def pickup_label(project_dir: str) -> str:
     cfg = load_project_yaml(project_dir)
     t = cfg.get("tracker") or {}

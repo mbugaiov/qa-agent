@@ -12,10 +12,12 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 from github_tracker import (  # noqa: E402
     extract_hints,
+    impl_qa_label,
     is_dev_handoff_comment,
     load_project_yaml,
     resolve_github_repo,
     tracker_provider,
+    validate_label,
 )
 
 
@@ -128,6 +130,23 @@ STG buildId: abcdef1234567890 (main abcdef1234567890)
                 self.assertEqual(tracker_provider(d), "github_issues")
             finally:
                 builtins.__import__ = real_import  # type: ignore[assignment]
+
+    def test_impl_qa_and_validate_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
+                fh.write(
+                    "slug: myapp\n"
+                    "tracker:\n"
+                    "  provider: github_issues\n"
+                    "  validate_label: validate-testing\n"
+                    "  impl_qa_label: impl-qa\n"
+                )
+            self.assertEqual(validate_label(d), "validate-testing")
+            self.assertEqual(impl_qa_label(d), "impl-qa")
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "project.yaml"), "w", encoding="utf-8") as fh:
+                fh.write("slug: myapp\ntracker:\n  provider: github_issues\n")
+            self.assertEqual(impl_qa_label(d), "impl-qa")
 
 
 if __name__ == "__main__":

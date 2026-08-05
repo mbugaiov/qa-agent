@@ -72,10 +72,11 @@ eval "$(./scripts/qa_scope.sh <slug> --log --shell)"
 echo "scope count=${SCOPE_COUNT:-$count} keys=${SCOPE_KEYS:-$keys}"
 ```
 **GitHub Issues factories** (`project.yaml` → `tracker.provider: github_issues`):
-scope = open issues with `validate-testing`; keys look like `<slug>#12`.
+scope = open issues with `validate-testing` **first**; when that queue is empty,
+open issues with `impl-qa` (Argus charter / marathon). Keys look like `<slug>#12`.
 Per ticket: `./scripts/qa_handoff.sh <slug> <key> --log` → STG retest →
 `python3 scripts/github_close_issue.py …` (PASS) or `github_return_to_dev.py` (FAIL; comment must include **`QA RETURN`**).
-**Forbidden:** checking `$SCOPE_COUNT` without `--log --shell`; logging `scope_check count=0` by hand; skipping scope when a tracker is configured; using `jira_scope` on a `github_issues` project.
+**Forbidden:** checking `$SCOPE_COUNT` without `--log --shell`; logging `scope_check count=0` by hand; skipping scope when a tracker is configured; using `jira_scope` on a `github_issues` project; ending a tick while `qa_scope` still lists open `impl-qa` keys.
 
 1. `tick_start` + scope step above (scope_check logged by `--log`)
 2. **If `count > 0` (or `SCOPE_COUNT > 0`):** for **each** scope ticket **before browser work**:
