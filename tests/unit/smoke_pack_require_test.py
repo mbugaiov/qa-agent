@@ -26,14 +26,15 @@ class SmokePackRequireTest(unittest.TestCase):
     def test_pack_exists_blocks_without_pass(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, "automation", "specs"))
-            open(
+            with open(
                 os.path.join(d, "automation", "specs", "acceptance-smoke.spec.js"),
                 "w",
                 encoding="utf-8",
-            ).write("// pack\n")
+            ) as fh:
+                fh.write("// pack\n")
             self.assertTrue(pack_exists(d))
             with self.assertRaises(SystemExit) as cm:
-                require_smoke_pack_pass(d, "pantheon#91")
+                require_smoke_pack_pass(d, "app#91")
             self.assertEqual(cm.exception.code, 5)
 
     def test_dod_smoke_pack_pass(self) -> None:
@@ -50,19 +51,20 @@ class SmokePackRequireTest(unittest.TestCase):
         self.assertTrue(has_smoke_pack_pass(events))
         with tempfile.TemporaryDirectory() as d:
             os.makedirs(os.path.join(d, "automation", "specs"))
-            open(
+            with open(
                 os.path.join(d, "automation", "specs", "acceptance-smoke.spec.js"),
                 "w",
                 encoding="utf-8",
-            ).write("// pack\n")
+            ) as fh:
+                fh.write("// pack\n")
             os.makedirs(os.path.join(d, "factory", "runs"))
             with open(
-                os.path.join(d, "factory", "runs", "pantheon#91.jsonl"),
+                os.path.join(d, "factory", "runs", "app#91.jsonl"),
                 "w",
                 encoding="utf-8",
             ) as fh:
                 fh.write(json.dumps(events[0]) + "\n")
-            require_smoke_pack_pass(d, "pantheon#91")  # no raise
+            require_smoke_pack_pass(d, "app#91")  # no raise
 
 
 if __name__ == "__main__":

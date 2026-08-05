@@ -48,6 +48,11 @@ def main() -> int:
         action="store_true",
         help="Escape hatch only — do not use in normal factory ticks",
     )
+    ap.add_argument(
+        "--allow-missing-smoke-pack",
+        action="store_true",
+        help="Escape hatch only — skip acceptance-smoke pack gate when pack exists",
+    )
     a = ap.parse_args()
 
     cfg = load_env_file(os.path.join(a.project, ".secrets", "jira.env"))
@@ -60,6 +65,7 @@ def main() -> int:
 
     # Live Jira close: engine feature must be used by the project ledger.
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    from smoke_pack_require import require_smoke_pack_pass  # noqa: E402
     from verdict_review_require import require_verdict_review_pass  # noqa: E402
 
     if not a.dry_run:
@@ -67,6 +73,11 @@ def main() -> int:
             a.project,
             a.key,
             allow_missing=a.allow_missing_verdict_review,
+        )
+        require_smoke_pack_pass(
+            a.project,
+            a.key,
+            allow_missing=a.allow_missing_smoke_pack,
         )
 
     base = base.rstrip("/")

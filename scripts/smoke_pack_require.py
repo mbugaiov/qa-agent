@@ -44,7 +44,7 @@ def _ledger_candidates(project_dir: str, key: str) -> list[str]:
     return [os.path.join(runs, f"{n}.jsonl") for n in names]
 
 
-def load_events(project_dir: str, key: str) -> list[dict[str, Any]]:
+def load_events(project_dir: str, key: str, *, include_loop: bool = False) -> list[dict[str, Any]]:
     out: list[dict[str, Any]] = []
     for path in _ledger_candidates(project_dir, key):
         if not os.path.isfile(path):
@@ -60,20 +60,20 @@ def load_events(project_dir: str, key: str) -> list[dict[str, Any]]:
                     continue
                 if isinstance(rec, dict):
                     out.append(rec)
-    # Also scan _loop for smoke_pack events this project
-    loop = os.path.join(project_dir, "factory", "runs", "_loop.jsonl")
-    if os.path.isfile(loop):
-        with open(loop, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if isinstance(rec, dict):
-                    out.append(rec)
+    if include_loop:
+        loop = os.path.join(project_dir, "factory", "runs", "_loop.jsonl")
+        if os.path.isfile(loop):
+            with open(loop, encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if isinstance(rec, dict):
+                        out.append(rec)
     return out
 
 

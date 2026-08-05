@@ -414,35 +414,23 @@ for key in scope_keys:
         if not dod.get("openspec_read"):
             errors.append(f"{key}: DONE requires openspec_read=true (spec authority checked)")
         require_verdict_review(key, events, dod, verdict, errors)
-        # Acceptance smoke pack (pantheon#91): when automation/specs/acceptance-smoke.spec.js
-        # (or SMOKE_PACK marker) exists, DONE needs smoke_pack=pass on dod or ledger event.
-        smoke_spec = project_dir / "automation" / "specs" / "acceptance-smoke.spec.js"
-        smoke_marker = project_dir / "automation" / "SMOKE_PACK"
-        if smoke_spec.is_file() or smoke_marker.is_file():
-            smoke_ok = str(dod.get("smoke_pack", "")).lower() in ("pass", "true", "1", "yes", "ok", "green")
-            if not smoke_ok:
-                for ev in events:
-                    if ev.get("event") != "smoke_pack":
-                        continue
-                    d = ev.get("detail") or {}
-                    if str(d.get("result", "")).lower() in ("pass", "true", "1", "yes", "ok", "green"):
-                        smoke_ok = True
-                        break
-                    if str(d.get("smoke_pack", "")).lower() in ("pass", "true", "1", "yes", "ok", "green"):
-                        smoke_ok = True
-                        break
-            if not smoke_ok:
-                # Also accept a loop-level smoke_pack pass this tick
-                for ev in loop_events:
-                    if not since_tick(ev):
-                        continue
-                    if ev.get("event") != "smoke_pack":
-                        continue
-                    d = ev.get("detail") or {}
-                    if str(d.get("result", "")).lower() in ("pass", "true", "1", "yes", "ok", "green"):
-                        smoke_ok = True
-                        break
-            if not smoke_ok:
+        # Acceptance smoke pack — shared helper (same contract as close scripts).
+        import importlib.util
+        smoke_mod = None
+        for root_try in (project_dir.parent.parent, project_dir.parent.parent.parent):
+            helper = root_try / "scripts" / "smoke_pack_require.py"
+            if helper.is_file():
+                spec = importlib.util.spec_from_file_location("smoke_pack_require", helper)
+                smoke_mod = importlib.util.module_from_spec(spec)
+                assert spec.loader is not None
+                spec.loader.exec_module(smoke_mod)
+                break
+        if smoke_mod and smoke_mod.pack_exists(str(project_dir)):
+            tick_events = list(events)
+            for ev in loop_events:
+                if since_tick(ev) and ev.get("event") == "smoke_pack":
+                    tick_events.append(ev)
+            if not smoke_mod.has_smoke_pack_pass(tick_events, dod):
                 errors.append(
                     f"{key}: DONE requires smoke_pack=pass when acceptance smoke pack exists "
                     f"(run_automation.sh --suite acceptance-smoke.spec.js; "
