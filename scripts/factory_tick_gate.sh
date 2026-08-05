@@ -414,6 +414,40 @@ for key in scope_keys:
         if not dod.get("openspec_read"):
             errors.append(f"{key}: DONE requires openspec_read=true (spec authority checked)")
         require_verdict_review(key, events, dod, verdict, errors)
+        # Acceptance smoke pack (pantheon#91): when automation/specs/acceptance-smoke.spec.js
+        # (or SMOKE_PACK marker) exists, DONE needs smoke_pack=pass on dod or ledger event.
+        smoke_spec = project_dir / "automation" / "specs" / "acceptance-smoke.spec.js"
+        smoke_marker = project_dir / "automation" / "SMOKE_PACK"
+        if smoke_spec.is_file() or smoke_marker.is_file():
+            smoke_ok = str(dod.get("smoke_pack", "")).lower() in ("pass", "true", "1", "yes", "ok", "green")
+            if not smoke_ok:
+                for ev in events:
+                    if ev.get("event") != "smoke_pack":
+                        continue
+                    d = ev.get("detail") or {}
+                    if str(d.get("result", "")).lower() in ("pass", "true", "1", "yes", "ok", "green"):
+                        smoke_ok = True
+                        break
+                    if str(d.get("smoke_pack", "")).lower() in ("pass", "true", "1", "yes", "ok", "green"):
+                        smoke_ok = True
+                        break
+            if not smoke_ok:
+                # Also accept a loop-level smoke_pack pass this tick
+                for ev in loop_events:
+                    if not since_tick(ev):
+                        continue
+                    if ev.get("event") != "smoke_pack":
+                        continue
+                    d = ev.get("detail") or {}
+                    if str(d.get("result", "")).lower() in ("pass", "true", "1", "yes", "ok", "green"):
+                        smoke_ok = True
+                        break
+            if not smoke_ok:
+                errors.append(
+                    f"{key}: DONE requires smoke_pack=pass when acceptance smoke pack exists "
+                    f"(run_automation.sh --suite acceptance-smoke.spec.js; "
+                    f"factory_log … smoke_pack result=pass or dod_check smoke_pack=pass)"
+                )
 
     handoff_status = ticket_handoff_status(key)
     if handoff_status:
