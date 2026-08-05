@@ -430,20 +430,16 @@ for key in scope_keys:
             or (project_dir / "automation" / "SMOKE_PACK").is_file()
         )
         if pack_present:
-            tick_events = list(events)
-            for ev in loop_events:
-                if since_tick(ev) and ev.get("event") == "smoke_pack":
-                    tick_events.append(ev)
             if smoke_mod is None:
                 errors.append(
                     f"{key}: DONE — acceptance smoke pack exists but smoke_pack_require.py "
                     f"could not be loaded from engine scripts/"
                 )
-            elif not smoke_mod.has_smoke_pack_pass(tick_events, dod):
+            elif not smoke_mod.has_smoke_pack_pass(events, dod):
                 errors.append(
                     f"{key}: DONE requires smoke_pack=pass when acceptance smoke pack exists "
                     f"(run_automation.sh --suite acceptance-smoke.spec.js; "
-                    f"factory_log … smoke_pack result=pass or dod_check smoke_pack=pass)"
+                    f"factory_log <slug> <KEY> smoke_pack result=pass or dod_check smoke_pack=pass)"
                 )
 
     handoff_status = ticket_handoff_status(key)
