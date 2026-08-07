@@ -56,6 +56,11 @@ def main() -> int:
         action="store_true",
         help="Escape hatch only — do not use in normal factory ticks",
     )
+    ap.add_argument(
+        "--allow-missing-verdict-review-comment",
+        action="store_true",
+        help="Escape hatch only — skip VERDICT_REVIEW_PASS tracker comment gate",
+    )
     a = ap.parse_args()
 
     cfg = load_env_file(os.path.join(a.project, ".secrets", "jira.env"))
@@ -67,6 +72,7 @@ def main() -> int:
         return 0
 
     sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+    from verdict_review_comment_require import require_verdict_review_comment  # noqa: E402
     from verdict_review_require import require_verdict_review_pass  # noqa: E402
 
     if not a.dry_run:
@@ -74,6 +80,11 @@ def main() -> int:
             a.project,
             a.key,
             allow_missing=a.allow_missing_verdict_review,
+        )
+        require_verdict_review_comment(
+            a.project,
+            a.key,
+            allow_missing=a.allow_missing_verdict_review_comment,
         )
 
     base = base.rstrip("/")

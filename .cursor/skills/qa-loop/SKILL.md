@@ -85,11 +85,13 @@ Per ticket: `./scripts/qa_handoff.sh <slug> <key> --log` → STG retest →
    - **`./scripts/ticket_tc.sh <slug> <KEY> --title "…" [--steps-file …] [--scenario SC-*] [--req REQ-*] --log`** — persist regression TC in `test-cases/` (idempotent); updates `project-memory.md` regression index
    - Derive 3–5 test steps from **OpenSpec + handoff** → note in `run.md` per-ticket checklist (must match persisted TC)
    - `./scripts/stg_buildid.sh <slug> <handoff-sha>` when handoff cites buildId
-3. For **each** scope ticket — execute checklist → **skill `qa-verdict-review`** (artifact +
-   `check_verdict_review.sh`) for Done/FAIL/RETURN candidates → log `dod_check` with terminal
-   verdict **and** `verdict_review=pass` (or prior `verdict_review` event) → **then** close/return
-   (`jira_close_issue.py` / `github_close_issue.py` / return scripts). Those scripts **refuse**
-   without ledger `verdict_review=pass` (exit 4).
+3. For **each** scope ticket — execute checklist → **skill `qa-verdict-review`** (Task
+   subagent mandatory; artifact + `check_verdict_review.sh` +
+   `post_verdict_review_comment.py` → `VERDICT_REVIEW_PASS`) for Done/FAIL/RETURN
+   candidates → log `dod_check` with terminal verdict **and** `verdict_review=pass`
+   → **then** close/return (`jira_close_issue.py` / `github_close_issue.py` / return
+   scripts). Those scripts **refuse** without ledger `verdict_review=pass` (exit 4)
+   and without tracker `VERDICT_REVIEW_PASS` (exit 7).
 4. `./scripts/factory_tick_gate.sh <slug>` — must print `GATE OPEN`
 5. **Only if scope empty OR all scope tickets have terminal `dod_check`:** exploratory slice
 6. `tick_end` + update `run.md`

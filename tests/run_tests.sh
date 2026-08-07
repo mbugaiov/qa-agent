@@ -894,6 +894,9 @@ python3 tests/unit/smoke_pack_require_test.py -q 2>/dev/null \
 python3 tests/unit/recording_require_test.py -q 2>/dev/null \
   && ok "recording_require unit tests" \
   || no "recording_require unit tests"
+python3 tests/unit/verdict_review_comment_test.py -q 2>/dev/null \
+  && ok "verdict_review_comment unit tests" \
+  || no "verdict_review_comment unit tests"
 python3 tests/unit/github_create_issue_test.py -q 2>/dev/null \
   && ok "github_create_issue unit tests" \
   || no "github_create_issue unit tests"
@@ -1044,6 +1047,26 @@ CLOSE_REC=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" 
 python3 scripts/recording_require.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#88" >/dev/null \
   && ok "recording_require OK after dod_check recording_attached=true" \
   || no "recording_require should pass with ledger"
+# VERDICT_REVIEW_PASS comment gate (after ledger+smoke+recording)
+CLOSE_VRC=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#88" --comment "pass" 2>&1); CLOSE_VRC_EC=$?
+[[ "$CLOSE_VRC_EC" -eq 7 ]] && echo "$CLOSE_VRC" | grep -qi "VERDICT_REVIEW_COMMENT_REQUIRED\|VERDICT_REVIEW_COMMENT" \
+  && ok "github_close_issue blocks without VERDICT_REVIEW_PASS comment" \
+  || no "github_close_issue must exit 7 for missing VERDICT_REVIEW_PASS (got ec=$CLOSE_VRC_EC: $CLOSE_VRC)"
+python3 -c "
+import sys
+sys.path.insert(0, 'scripts')
+from verdict_review_comment_require import require_verdict_review_comment, format_pass_comment
+require_verdict_review_comment('projects/$GH_SLUG', '${GH_SLUG}#88', bodies=[format_pass_comment(artifact='runs/x.md', summary='ok')])
+print('ok')
+" >/dev/null \
+  && ok "verdict_review_comment_require OK with injected PASS body" \
+  || no "injected VERDICT_REVIEW_PASS should unlock comment gate"
+DRY_POST=$(python3 scripts/post_verdict_review_comment.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#88" --artifact runs/x.md --summary "fixture" --dry-run 2>&1)
+echo "$DRY_POST" | grep -q "VERDICT_REVIEW_PASS" \
+  && ok "post_verdict_review_comment dry-run prints sentinel" \
+  || no "post_verdict_review_comment dry-run (got: $DRY_POST)"
+grep_ok "VERDICT_REVIEW_PASS" .cursor/skills/qa-verdict-review/SKILL.md "qa-verdict-review documents VERDICT_REVIEW_PASS"
+grep_ok "Sub-agent (mandatory)" .cursor/skills/qa-verdict-review/SKILL.md "qa-verdict-review requires Task subagent"
 grep_ok "smoke_pack" projects/_template/factory/schema.md "template schema documents smoke_pack"
 grep_ok "qa_scope.sh" .cursor/skills/qa-loop/SKILL.md "qa-loop skill references qa_scope.sh"
 grep_ok "github_create_issue" .cursor/skills/qa-loop/SKILL.md "qa-loop documents github_create_issue"

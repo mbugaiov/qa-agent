@@ -58,6 +58,11 @@ def main() -> int:
         action="store_true",
         help="Escape hatch only — skip recording/GIF ledger gate",
     )
+    ap.add_argument(
+        "--allow-missing-verdict-review-comment",
+        action="store_true",
+        help="Escape hatch only — skip VERDICT_REVIEW_PASS tracker comment gate",
+    )
     a = ap.parse_args()
 
     cfg = load_env_file(os.path.join(a.project, ".secrets", "jira.env"))
@@ -72,6 +77,7 @@ def main() -> int:
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from recording_require import require_recording_attached  # noqa: E402
     from smoke_pack_require import require_smoke_pack_pass  # noqa: E402
+    from verdict_review_comment_require import require_verdict_review_comment  # noqa: E402
     from verdict_review_require import require_verdict_review_pass  # noqa: E402
 
     if not a.dry_run:
@@ -89,6 +95,11 @@ def main() -> int:
             a.project,
             a.key,
             allow_missing=a.allow_missing_recording,
+        )
+        require_verdict_review_comment(
+            a.project,
+            a.key,
+            allow_missing=a.allow_missing_verdict_review_comment,
         )
 
     base = base.rstrip("/")

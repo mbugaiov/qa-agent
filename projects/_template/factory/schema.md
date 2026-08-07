@@ -29,6 +29,10 @@ Each line is one JSON object (JSONL). All events include:
 | `recording_attached` | E2E clip attached to ticket | `{ "caption": "…" }` |
 | `tick_end` | End of tick (after gate passes) | `{ "run", "scope_count", "gate": "open" }` |
 | `verdict` | Retest result (legacy / extra) | `{ "verdict": "PASS\|FAIL\|needs-human", "merge_sha", "buildid" }` |
+
+Close/return also require a tracker comment **`VERDICT_REVIEW_PASS`** (see
+`post_verdict_review_comment.py` / `verdict_review_comment_require.py`).
+
 | `transition` | Jira status change | `{ "to": "Done\|In Progress\|Validate/Testing" }` |
 | `bug_filed` | New confirmed defect | `{ "key": "RQ-…", "severity": "S2" }` |
 | `regression_reopen` | Done ticket failed retest | `{ "reason": "…" }` |
@@ -132,13 +136,15 @@ work is incomplete — continue the same tick until terminal verdict.
 bash scripts/check_verdict_review.sh projects/<slug>/runs/<run>/verdict-review-ABC-1.md
 ./scripts/factory_log.sh <slug> ABC-1 verdict_review result=pass \
   artifact=runs/<run>/verdict-review-ABC-1.md
+python3 scripts/post_verdict_review_comment.py --project projects/<slug> --key ABC-1 \
+  --artifact runs/<run>/verdict-review-ABC-1.md --summary "ABC-1 PASS candidate"
 ./scripts/factory_log.sh <slug> ABC-1 dod_check \
   verdict=DONE two_pass=true canonical_source=true \
   buildid_gate=MATCH recording_attached=true \
   retest_attempted=true feature_steps_executed=true openspec_read=true \
   verdict_review=pass
 ./scripts/factory_log.sh <slug> ABC-1 recording_attached caption="Feature verified E2E"
-# Close scripts refuse without ledger verdict_review=pass:
+# Close scripts refuse without ledger verdict_review=pass AND VERDICT_REVIEW_PASS comment:
 python3 scripts/jira_close_issue.py --project projects/<slug> --key ABC-1 \
   --to Done --comment "QA PASS"
 ./scripts/factory_log.sh <slug> ABC-1 transition to=Done
