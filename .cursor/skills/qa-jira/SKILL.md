@@ -205,9 +205,12 @@ with ffmpeg, attaches, deletes the local copy. Keep clips short but complete (sh
    **MISMATCH_BEHIND** ⇒ do NOT Done; comment expected-vs-actual. (Skip only when the project has no `STG_URL`.)
 3. Mandatory **E2E recording** attached (pure-CI/pipeline tickets exempt).
 4. Verdict is not `needs-human` (ambiguous requirement / policy uncertainty / destructive → leave open, surface to user).
-5. **Verdict review** (skill `qa-verdict-review`): write `verdict-review-<KEY>.md` → `check_verdict_review.sh` →
-   ledger `verdict_review=pass` **before** `jira_close_issue.py` / `github_close_issue.py`. Those scripts **exit 4**
-   without the ledger pass (`--allow-missing-verdict-review` escape hatch only).
+5. **Verdict review** (skill `qa-verdict-review`): Task subagent → write `verdict-review-<KEY>.md` →
+   `check_verdict_review.sh` → ledger `verdict_review=pass` →
+   `post_verdict_review_comment.py` (`VERDICT_REVIEW_PASS` on the tracker) **before**
+   `jira_close_issue.py` / `github_close_issue.py`. Those scripts **exit 4** without the ledger pass
+   and **exit 7** without the tracker comment (`--allow-missing-verdict-review` /
+   `--allow-missing-verdict-review-comment` escape hatches only).
 6. **Acceptance smoke pack** (when `projects/<slug>/automation/specs/acceptance-smoke.spec.js` or `SMOKE_PACK`
    marker exists): green STG run + ledger `smoke_pack=pass` (or `factory_log … smoke_pack result=pass`).
    Close scripts **exit 5** without it (`--allow-missing-smoke-pack` escape hatch only).

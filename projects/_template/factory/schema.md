@@ -23,7 +23,7 @@ Each line is one JSON object (JSONL). All events include:
 | `handoff_read` | Dev handoff consumed before V/T retest | `{ "buildId": "…", "pr": "…", "status": "…" }` |
 | `tc_linked` | Ticket mapped to persisted regression TC | `{ "tc_id": "TC-RQ-1", "path": "test-cases/…", "created": true \| "existing": true }` |
 | `dod_check` | **Per scope ticket before tick_end** | See **DoD gate** below |
-| `verdict_review` | Before Done/FAIL/RETURN (skill `qa-verdict-review`) | `{ "result": "pass", "artifact": "runs/…/verdict-review-<KEY>.md" }` |
+| `verdict_review` | Before Done/FAIL/RETURN (skill `qa-verdict-review`) | `{ "result": "pass", "artifact": "runs/…/verdict-review-<KEY>.md" }` — close/return also need tracker comment **`VERDICT_REVIEW_PASS`** (`post_verdict_review_comment.py` / `verdict_review_comment_require.py`, exit **7**) |
 | `smoke_pack` | Before Done when acceptance smoke pack exists | `{ "result": "pass", "suite": "acceptance-smoke.spec.js" }` on the **ticket** ledger (same as `verdict_review`) — also `dod_check smoke_pack=pass` |
 | `backlog_drained` | Final step before `tick_end` when real work happened | `{ "count": N }` — proof `jira_scope.sh` was re-run after resolving and the queue was checked again |
 | `recording_attached` | E2E clip attached to ticket | `{ "caption": "…" }` |
@@ -132,13 +132,15 @@ work is incomplete — continue the same tick until terminal verdict.
 bash scripts/check_verdict_review.sh projects/<slug>/runs/<run>/verdict-review-ABC-1.md
 ./scripts/factory_log.sh <slug> ABC-1 verdict_review result=pass \
   artifact=runs/<run>/verdict-review-ABC-1.md
+python3 scripts/post_verdict_review_comment.py --project projects/<slug> --key ABC-1 \
+  --artifact runs/<run>/verdict-review-ABC-1.md --summary "ABC-1 PASS candidate"
 ./scripts/factory_log.sh <slug> ABC-1 dod_check \
   verdict=DONE two_pass=true canonical_source=true \
   buildid_gate=MATCH recording_attached=true \
   retest_attempted=true feature_steps_executed=true openspec_read=true \
   verdict_review=pass
 ./scripts/factory_log.sh <slug> ABC-1 recording_attached caption="Feature verified E2E"
-# Close scripts refuse without ledger verdict_review=pass:
+# Close scripts refuse without ledger verdict_review=pass AND VERDICT_REVIEW_PASS comment:
 python3 scripts/jira_close_issue.py --project projects/<slug> --key ABC-1 \
   --to Done --comment "QA PASS"
 ./scripts/factory_log.sh <slug> ABC-1 transition to=Done
@@ -151,6 +153,8 @@ python3 scripts/jira_close_issue.py --project projects/<slug> --key ABC-1 \
 bash scripts/check_verdict_review.sh projects/<slug>/runs/<run>/verdict-review-ABC-2.md
 ./scripts/factory_log.sh <slug> ABC-2 verdict_review result=pass \
   artifact=runs/<run>/verdict-review-ABC-2.md
+python3 scripts/post_verdict_review_comment.py --project projects/<slug> --key ABC-2 \
+  --artifact runs/<run>/verdict-review-ABC-2.md --summary "ABC-2 RETURN candidate"
 ./scripts/factory_log.sh <slug> ABC-2 dod_check \
   verdict=RETURN_DEV dev_ticket=ABC-9 transition=In\ Progress \
   retest_attempted=true alternate_locators_tried=true feature_steps_executed=true \

@@ -31,7 +31,10 @@ Loop-level events: \`projects/${SLUG}/factory/runs/_loop.jsonl\`
 **Close/return hard gate:** \`jira_close_issue.py\` / \`github_close_issue.py\` /
 \`jira_return_in_progress.py\` / \`github_return_to_dev.py\` refuse live transitions
 unless the ticket ledger has \`verdict_review=pass\` (skill \`qa-verdict-review\` →
-\`check_verdict_review.sh\`). Escape hatch: \`--allow-missing-verdict-review\` only.
+\`check_verdict_review.sh\`; exit **4**) **and** the tracker has a
+\`VERDICT_REVIEW_PASS\` comment from \`post_verdict_review_comment.py\` (exit **7**).
+Escape hatches: \`--allow-missing-verdict-review\` /
+\`--allow-missing-verdict-review-comment\` only.
 
 ## ${SLUG}-specific examples
 
@@ -51,6 +54,8 @@ None.
 VR
 bash scripts/check_verdict_review.sh projects/${SLUG}/runs/<run>/verdict-review-<KEY>.md
 ./scripts/factory_log.sh ${SLUG} <KEY> verdict_review result=pass artifact=runs/<run>/verdict-review-<KEY>.md
+python3 scripts/post_verdict_review_comment.py --project projects/${SLUG} --key <KEY> \\
+  --artifact runs/<run>/verdict-review-<KEY>.md --summary "<KEY> PASS candidate"
 ./scripts/factory_log.sh ${SLUG} <KEY> dod_check \\
   verdict=DONE two_pass=true canonical_source=true \\
   buildid_gate=MATCH recording_attached=true \\
@@ -66,6 +71,8 @@ python3 scripts/jira_close_issue.py --project projects/${SLUG} --key <KEY> \\
 \`\`\`bash
 bash scripts/check_verdict_review.sh projects/${SLUG}/runs/<run>/verdict-review-<KEY>.md
 ./scripts/factory_log.sh ${SLUG} <KEY> verdict_review result=pass artifact=runs/<run>/verdict-review-<KEY>.md
+python3 scripts/post_verdict_review_comment.py --project projects/${SLUG} --key <KEY> \\
+  --artifact runs/<run>/verdict-review-<KEY>.md --summary "<KEY> RETURN candidate"
 ./scripts/factory_log.sh ${SLUG} <KEY> dod_check \\
   verdict=RETURN_DEV dev_ticket=<BUG> transition=In\\ Progress \\
   retest_attempted=true alternate_locators_tried=true feature_steps_executed=true \\
