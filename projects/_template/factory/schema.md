@@ -23,16 +23,12 @@ Each line is one JSON object (JSONL). All events include:
 | `handoff_read` | Dev handoff consumed before V/T retest | `{ "buildId": "…", "pr": "…", "status": "…" }` |
 | `tc_linked` | Ticket mapped to persisted regression TC | `{ "tc_id": "TC-RQ-1", "path": "test-cases/…", "created": true \| "existing": true }` |
 | `dod_check` | **Per scope ticket before tick_end** | See **DoD gate** below |
-| `verdict_review` | Before Done/FAIL/RETURN (skill `qa-verdict-review`) | `{ "result": "pass", "artifact": "runs/…/verdict-review-<KEY>.md" }` |
+| `verdict_review` | Before Done/FAIL/RETURN (skill `qa-verdict-review`) | `{ "result": "pass", "artifact": "runs/…/verdict-review-<KEY>.md" }` — close/return also need tracker comment **`VERDICT_REVIEW_PASS`** (`post_verdict_review_comment.py` / `verdict_review_comment_require.py`, exit **7**) |
 | `smoke_pack` | Before Done when acceptance smoke pack exists | `{ "result": "pass", "suite": "acceptance-smoke.spec.js" }` on the **ticket** ledger (same as `verdict_review`) — also `dod_check smoke_pack=pass` |
 | `backlog_drained` | Final step before `tick_end` when real work happened | `{ "count": N }` — proof `jira_scope.sh` was re-run after resolving and the queue was checked again |
 | `recording_attached` | E2E clip attached to ticket | `{ "caption": "…" }` |
 | `tick_end` | End of tick (after gate passes) | `{ "run", "scope_count", "gate": "open" }` |
 | `verdict` | Retest result (legacy / extra) | `{ "verdict": "PASS\|FAIL\|needs-human", "merge_sha", "buildid" }` |
-
-Close/return also require a tracker comment **`VERDICT_REVIEW_PASS`** (see
-`post_verdict_review_comment.py` / `verdict_review_comment_require.py`).
-
 | `transition` | Jira status change | `{ "to": "Done\|In Progress\|Validate/Testing" }` |
 | `bug_filed` | New confirmed defect | `{ "key": "RQ-…", "severity": "S2" }` |
 | `regression_reopen` | Done ticket failed retest | `{ "reason": "…" }` |

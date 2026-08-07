@@ -16,7 +16,7 @@
 | Projects, runs, run types, starting an engagement | `qa-runs` |
 | The detailed per-phase how-to (Phase 1–9, spec layer) | `qa-phases` |
 | A recurring/continuous QA loop tick | `qa-loop` |
-| Critique PASS/FAIL/RETURN before close | `qa-verdict-review` |
+| Critique PASS/FAIL/RETURN before close (Task subagent + tracker `VERDICT_REVIEW_PASS`) | `qa-verdict-review` |
 | Starting/stopping the app under test | `qa-server` |
 | Test data prep/cleanup before feature tests (STG congestion) | `qa-test-data` |
 | OpenSpec read + coverage gate before retest | `qa-openspec` |
