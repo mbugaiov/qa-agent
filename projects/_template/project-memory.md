@@ -29,7 +29,7 @@
 - **Scope JQL:** `parent = <EPIC-KEY> AND status in ("In Progress", "Validate/Testing")` (adjust per project)
 - **On Hold / skip:** <ticket keys or status exclusions>
 - **Last known scope:** <empty | list keys>
-- **DoD gate:** before each `tick_end`, `./scripts/factory_tick_gate.sh <slug>` must exit 0. Log `scope_check` + per-ticket `dod_check` (terminal verdicts only) with **`verdict_review=pass`** after skill `qa-verdict-review` + `check_verdict_review.sh`. Close/return scripts refuse without that ledger pass. See `factory/schema.md` + skill `qa-loop`.
+- **DoD gate:** before each `tick_end`, `./scripts/factory_tick_gate.sh <slug>` must exit 0. Log `scope_check` + per-ticket `dod_check` (terminal verdicts only) with **`verdict_review=pass`** after skill `qa-verdict-review` + `check_verdict_review.sh`, and post tracker **`VERDICT_REVIEW_PASS`** via `post_verdict_review_comment.py`. Close/return scripts refuse without that ledger pass (exit **4**) and without the tracker comment (exit **7**). See `factory/schema.md` + skill `qa-loop`.
 - **Schema sync:** after engine `_template` schema changes, run `./scripts/sync_factory_schema.sh <slug>` (or `--overlay` for example-only project schemas).
 
 ## Coverage ledger (rotate exploratory each tick)

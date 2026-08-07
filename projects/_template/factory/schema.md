@@ -153,6 +153,8 @@ python3 scripts/jira_close_issue.py --project projects/<slug> --key ABC-1 \
 bash scripts/check_verdict_review.sh projects/<slug>/runs/<run>/verdict-review-ABC-2.md
 ./scripts/factory_log.sh <slug> ABC-2 verdict_review result=pass \
   artifact=runs/<run>/verdict-review-ABC-2.md
+python3 scripts/post_verdict_review_comment.py --project projects/<slug> --key ABC-2 \
+  --artifact runs/<run>/verdict-review-ABC-2.md --summary "ABC-2 RETURN candidate"
 ./scripts/factory_log.sh <slug> ABC-2 dod_check \
   verdict=RETURN_DEV dev_ticket=ABC-9 transition=In\ Progress \
   retest_attempted=true alternate_locators_tried=true feature_steps_executed=true \
