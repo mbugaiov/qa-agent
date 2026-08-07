@@ -17,10 +17,11 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
-from github_tracker import github_repo, tracker_provider  # noqa: E402
+from github_tracker import github_inactive, github_repo, tracker_provider  # noqa: E402
 from verdict_review_comment_require import (  # noqa: E402
     format_blocked_comment,
     format_pass_comment,
+    is_jira_inactive,
 )
 
 
@@ -43,27 +44,22 @@ def post_github(project_dir: str, key: str, body: str) -> None:
 
 
 def post_jira(project_dir: str, key: str, body: str) -> None:
+    if is_jira_inactive(project_dir):
+        print(f"VERDICT_REVIEW_COMMENT_SKIP {key}: Jira inactive/placeholder (no-op)")
+        return
+
     try:
         import requests
         from requests.auth import HTTPBasicAuth
     except ImportError as e:
         raise SystemExit(f"requests required: {e}") from e
 
-    env_path = os.path.join(project_dir, ".secrets", "jira.env")
-    cfg: dict[str, str] = {}
-    if os.path.isfile(env_path):
-        with open(env_path, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                cfg[k.strip()] = v.strip().strip('"').strip("'")
+    from jira_scope import load_env_file  # noqa: E402
+
+    cfg = load_env_file(os.path.join(project_dir, ".secrets", "jira.env"))
     base = (cfg.get("JIRA_BASE_URL") or "").rstrip("/")
     email = cfg.get("JIRA_EMAIL") or ""
     token = cfg.get("JIRA_API_TOKEN") or ""
-    if not (base and email and token):
-        raise SystemExit(f"Jira not configured for {project_dir}")
 
     # Plain text in a single ADF paragraph (newlines → hardBreaks)
     content: list[dict] = []
@@ -114,6 +110,11 @@ def main() -> int:
 
     provider = tracker_provider(a.project)
     if provider == "github_issues":
+        if github_inactive(a.project):
+            print(
+                f"VERDICT_REVIEW_COMMENT_SKIP {a.key}: GitHub tracker inactive (no-op)"
+            )
+            return 0
         post_github(a.project, a.key, body)
     elif provider == "jira":
         post_jira(a.project, a.key, body)

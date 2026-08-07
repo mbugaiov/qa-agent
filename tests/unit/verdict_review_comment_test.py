@@ -63,6 +63,32 @@ class VerdictReviewCommentTest(unittest.TestCase):
         self.assertIn("VERDICT_REVIEW_PASS", body)
         self.assertIn("artifact: runs/vr.md", body)
 
+    def test_jira_inactive_placeholder_skips(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        from verdict_review_comment_require import is_jira_inactive
+
+        with tempfile.TemporaryDirectory() as td:
+            secrets = Path(td) / ".secrets"
+            secrets.mkdir()
+            (secrets / "jira.env").write_text(
+                "\n".join(
+                    [
+                        "JIRA_BASE_URL=https://your-company.atlassian.net",
+                        "JIRA_EMAIL=paste-email@example.com",
+                        "JIRA_API_TOKEN=paste-token",
+                        "JIRA_PROJECT_KEY=ABC",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(is_jira_inactive(td))
+            # Must no-op (not exit 7) when fetching without injected bodies.
+            require_verdict_review_comment(td, "ABC-1")
+
+
 
 if __name__ == "__main__":
     unittest.main()

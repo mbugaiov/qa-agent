@@ -81,6 +81,8 @@ python3 scripts/post_verdict_review_comment.py --project projects/<slug> --key <
 
 Posts a comment starting with **`VERDICT_REVIEW_PASS`** (or `--blocked` → `VERDICT_REVIEW_BLOCKED`).
 
+Inactive / placeholder Jira (`your-company`, `paste-*`, template `ABC`) and inactive GitHub trackers **no-op** post + skip exit‑7 — same contract as close scripts.
+
 ## Ledger
 
 ```bash

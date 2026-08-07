@@ -27,10 +27,26 @@ _SCRIPTS = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
-from github_tracker import github_repo, tracker_provider  # noqa: E402
+from github_tracker import github_inactive, github_repo, tracker_provider  # noqa: E402
+from jira_scope import is_placeholder, load_env_file  # noqa: E402
 
 PASS_SENTINEL = "VERDICT_REVIEW_PASS"
 BLOCKED_SENTINEL = "VERDICT_REVIEW_BLOCKED"
+
+
+def is_jira_inactive(project_dir: str) -> bool:
+    """True when Jira is missing or template/placeholder — never call Atlassian."""
+    cfg = load_env_file(os.path.join(project_dir, ".secrets", "jira.env"))
+    base = cfg.get("JIRA_BASE_URL", "")
+    email = cfg.get("JIRA_EMAIL", "")
+    token = cfg.get("JIRA_API_TOKEN", "")
+    project_key = cfg.get("JIRA_PROJECT_KEY", "")
+    return (
+        is_placeholder(base)
+        or is_placeholder(email)
+        or is_placeholder(token)
+        or is_placeholder(project_key)
+    )
 
 # Dedicated line (optional ## heading), not "wait for VERDICT_REVIEW_PASS" prose.
 _PASS_RE = re.compile(
@@ -82,28 +98,6 @@ def fetch_github_comment_bodies(project_dir: str, key: str) -> list[str]:
     num = int(m.group(1))
     owner, repo = github_repo(project_dir)
     repo_ref = f"{owner}/{repo}"
-    out = subprocess.run(
-        [
-            "gh",
-            "api",
-            f"repos/{repo_ref}/issues/{num}/comments",
-            "--paginate",
-            "--jq",
-            ".[].body",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if out.returncode != 0:
-        print(
-            f"VERDICT_REVIEW_COMMENT_FETCH_FAIL {key}: {out.stderr or out.stdout}",
-            file=sys.stderr,
-        )
-        raise SystemExit(7)
-    bodies = [ln for ln in (out.stdout or "").split("\n\n") if ln.strip()]
-    # gh --jq prints one body per line when using .[].body — actually each body
-    # may be multiline. Prefer JSON:
     outj = subprocess.run(
         [
             "gh",
@@ -116,42 +110,42 @@ def fetch_github_comment_bodies(project_dir: str, key: str) -> list[str]:
         check=False,
     )
     if outj.returncode != 0:
-        return bodies
+        print(
+            f"VERDICT_REVIEW_COMMENT_FETCH_FAIL {key}: {outj.stderr or outj.stdout}",
+            file=sys.stderr,
+        )
+        raise SystemExit(7)
     try:
         data = json.loads(outj.stdout or "[]")
     except json.JSONDecodeError:
-        return bodies
+        print(
+            f"VERDICT_REVIEW_COMMENT_FETCH_FAIL {key}: invalid JSON from gh api",
+            file=sys.stderr,
+        )
+        raise SystemExit(7)
     if isinstance(data, list):
         return [str(c.get("body") or "") for c in data if isinstance(c, dict)]
-    return bodies
+    return []
 
 
 def fetch_jira_comment_bodies(project_dir: str, key: str) -> list[str]:
+    if is_jira_inactive(project_dir):
+        print(
+            f"VERDICT_REVIEW_COMMENT_SKIP {key}: Jira inactive/placeholder",
+            file=sys.stderr,
+        )
+        return []
+
     try:
         import requests
         from requests.auth import HTTPBasicAuth
     except ImportError as e:
         raise SystemExit(f"requests required for Jira comment gate: {e}") from e
 
-    env_path = os.path.join(project_dir, ".secrets", "jira.env")
-    cfg: dict[str, str] = {}
-    if os.path.isfile(env_path):
-        with open(env_path, encoding="utf-8") as fh:
-            for line in fh:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                cfg[k.strip()] = v.strip().strip('"').strip("'")
+    cfg = load_env_file(os.path.join(project_dir, ".secrets", "jira.env"))
     base = (cfg.get("JIRA_BASE_URL") or "").rstrip("/")
     email = cfg.get("JIRA_EMAIL") or ""
     token = cfg.get("JIRA_API_TOKEN") or ""
-    if not (base and email and token):
-        print(
-            f"VERDICT_REVIEW_COMMENT_SKIP {key}: Jira not configured",
-            file=sys.stderr,
-        )
-        return []
 
     res = requests.get(
         f"{base}/rest/api/3/issue/{key}/comment",
@@ -218,14 +212,22 @@ def require_verdict_review_comment(
     if bodies is None:
         provider = tracker_provider(project_dir)
         if provider == "github_issues":
+            if github_inactive(project_dir):
+                print(
+                    f"VERDICT_REVIEW_COMMENT_SKIP {key}: GitHub tracker inactive",
+                    file=sys.stderr,
+                )
+                return
             bodies = fetch_github_comment_bodies(project_dir, key)
         elif provider == "jira":
-            bodies = fetch_jira_comment_bodies(project_dir, key)
-            if not bodies and not os.path.isfile(
-                os.path.join(project_dir, ".secrets", "jira.env")
-            ):
-                # Inactive / unconfigured Jira projects no-op elsewhere — do not block.
+            if is_jira_inactive(project_dir):
+                # Same contract as jira_close_issue / jira_scope — never error on template.
+                print(
+                    f"VERDICT_REVIEW_COMMENT_SKIP {key}: Jira inactive/placeholder",
+                    file=sys.stderr,
+                )
                 return
+            bodies = fetch_jira_comment_bodies(project_dir, key)
         else:
             print(
                 f"VERDICT_REVIEW_COMMENT_SKIP {key}: unknown tracker {provider}",
