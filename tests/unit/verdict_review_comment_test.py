@@ -10,6 +10,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 
 from verdict_review_comment_require import (  # noqa: E402
+    _flatten_gh_comment_pages,
     comment_has_verdict_review_blocked,
     comment_has_verdict_review_pass,
     format_pass_comment,
@@ -87,6 +88,28 @@ class VerdictReviewCommentTest(unittest.TestCase):
             self.assertTrue(is_jira_inactive(td))
             # Must no-op (not exit 7) when fetching without injected bodies.
             require_verdict_review_comment(td, "ABC-1")
+
+    def test_flatten_gh_slurp_pages(self) -> None:
+        single = [{"id": 1, "body": "VERDICT_REVIEW_PASS\n"}]
+        self.assertEqual(len(_flatten_gh_comment_pages(single)), 1)
+        slurped = [
+            [{"id": 1, "body": "old"}],
+            [{"id": 2, "body": "VERDICT_REVIEW_PASS\nartifact: x\n"}],
+        ]
+        flat = _flatten_gh_comment_pages(slurped)
+        self.assertEqual(len(flat), 2)
+        bodies = [str(c.get("body") or "") for c in flat]
+        self.assertEqual(latest_pass_or_blocked(bodies), "pass")
+
+    def test_newest_sentinel_across_many_bodies(self) -> None:
+        # Simulate >50 comments with PASS then later BLOCKED on "last page".
+        bodies = [f"noise {i}" for i in range(55)]
+        bodies.append("VERDICT_REVIEW_PASS\nartifact: early\n")
+        bodies.extend([f"more {i}" for i in range(10)])
+        bodies.append("VERDICT_REVIEW_BLOCKED\n- gap\n")
+        self.assertEqual(latest_pass_or_blocked(bodies), "blocked")
+        bodies.append("VERDICT_REVIEW_PASS\nartifact: final\n")
+        self.assertEqual(latest_pass_or_blocked(bodies), "pass")
 
 
 

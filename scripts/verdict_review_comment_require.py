@@ -91,6 +91,23 @@ def format_blocked_comment(*, gaps: str) -> str:
     )
 
 
+def _flatten_gh_comment_pages(data: Any) -> list[dict]:
+    """Flatten `gh api --paginate --slurp` (list of pages) or a single page list."""
+    if not isinstance(data, list):
+        return []
+    if not data:
+        return []
+    # Single page: [{comment}, …]
+    if isinstance(data[0], dict) and ("body" in data[0] or "id" in data[0]):
+        return [c for c in data if isinstance(c, dict)]
+    # Slurp: [[{comment}, …], [{comment}, …], …]
+    out: list[dict] = []
+    for page in data:
+        if isinstance(page, list):
+            out.extend(c for c in page if isinstance(c, dict))
+    return out
+
+
 def fetch_github_comment_bodies(project_dir: str, key: str) -> list[str]:
     m = re.search(r"(\d+)$", key.strip())
     if not m:
@@ -104,6 +121,7 @@ def fetch_github_comment_bodies(project_dir: str, key: str) -> list[str]:
             "api",
             f"repos/{repo_ref}/issues/{num}/comments",
             "--paginate",
+            "--slurp",
         ],
         capture_output=True,
         text=True,
@@ -123,9 +141,16 @@ def fetch_github_comment_bodies(project_dir: str, key: str) -> list[str]:
             file=sys.stderr,
         )
         raise SystemExit(7)
-    if isinstance(data, list):
-        return [str(c.get("body") or "") for c in data if isinstance(c, dict)]
-    return []
+    return [str(c.get("body") or "") for c in _flatten_gh_comment_pages(data)]
+
+
+def _jira_comment_body_text(c: dict) -> str:
+    body = c.get("body")
+    if isinstance(body, str):
+        return body
+    if isinstance(body, dict):
+        return _adf_to_text(body)
+    return ""
 
 
 def fetch_jira_comment_bodies(project_dir: str, key: str) -> list[str]:
@@ -146,28 +171,36 @@ def fetch_jira_comment_bodies(project_dir: str, key: str) -> list[str]:
     base = (cfg.get("JIRA_BASE_URL") or "").rstrip("/")
     email = cfg.get("JIRA_EMAIL") or ""
     token = cfg.get("JIRA_API_TOKEN") or ""
+    auth = HTTPBasicAuth(email, token)
+    headers = {"Accept": "application/json"}
 
-    res = requests.get(
-        f"{base}/rest/api/3/issue/{key}/comment",
-        auth=HTTPBasicAuth(email, token),
-        headers={"Accept": "application/json"},
-        timeout=45,
-    )
-    if res.status_code >= 300:
-        print(
-            f"VERDICT_REVIEW_COMMENT_FETCH_FAIL {key}: HTTP {res.status_code}",
-            file=sys.stderr,
-        )
-        raise SystemExit(7)
-    data = res.json()
+    # Paginate oldest→newest so latest_pass_or_blocked sees the newest sentinel.
     bodies: list[str] = []
-    for c in data.get("comments") or []:
-        body = c.get("body")
-        if isinstance(body, str):
-            bodies.append(body)
-        elif isinstance(body, dict):
-            # ADF → rough plain text
-            bodies.append(_adf_to_text(body))
+    start_at = 0
+    page_size = 100
+    while True:
+        res = requests.get(
+            f"{base}/rest/api/3/issue/{key}/comment",
+            params={"startAt": start_at, "maxResults": page_size, "orderBy": "created"},
+            auth=auth,
+            headers=headers,
+            timeout=45,
+        )
+        if res.status_code >= 300:
+            print(
+                f"VERDICT_REVIEW_COMMENT_FETCH_FAIL {key}: HTTP {res.status_code}",
+                file=sys.stderr,
+            )
+            raise SystemExit(7)
+        data = res.json()
+        comments = data.get("comments") or []
+        for c in comments:
+            if isinstance(c, dict):
+                bodies.append(_jira_comment_body_text(c))
+        total = int(data.get("total") or 0)
+        start_at += len(comments)
+        if not comments or start_at >= total:
+            break
     return bodies
 
 
