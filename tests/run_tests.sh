@@ -891,6 +891,9 @@ python3 tests/unit/github_tracker_test.py -q 2>/dev/null \
 python3 tests/unit/smoke_pack_require_test.py -q 2>/dev/null \
   && ok "smoke_pack_require unit tests" \
   || no "smoke_pack_require unit tests"
+python3 tests/unit/recording_require_test.py -q 2>/dev/null \
+  && ok "recording_require unit tests" \
+  || no "recording_require unit tests"
 python3 tests/unit/github_create_issue_test.py -q 2>/dev/null \
   && ok "github_create_issue unit tests" \
   || no "github_create_issue unit tests"
@@ -1026,6 +1029,21 @@ CLOSE_SMOKE=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG
 python3 scripts/smoke_pack_require.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#99" >/dev/null \
   && ok "smoke_pack_require OK after dod_check smoke_pack=pass" \
   || no "smoke_pack_require should pass with ledger"
+# Recording GIF gate: close needs recording_attached (or exempt)
+REC_BLOCK=$(python3 scripts/recording_require.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#88" 2>&1); REC_BLOCK_EC=$?
+[[ "$REC_BLOCK_EC" -eq 6 ]] && echo "$REC_BLOCK" | grep -qi "RECORDING_REQUIRED" \
+  && ok "recording_require blocks Done without recording_attached" \
+  || no "recording_require should exit 6 (got ec=$REC_BLOCK_EC: $REC_BLOCK)"
+# Close with smoke+verdict but no recording on a fresh key → exit 6
+./scripts/factory_log.sh "$GH_SLUG" "${GH_SLUG}#88" dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH feature_steps_executed=true openspec_read=true verdict_review=pass smoke_pack=pass >/dev/null
+CLOSE_REC=$(python3 scripts/github_close_issue.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#88" --comment "pass" 2>&1); CLOSE_REC_EC=$?
+[[ "$CLOSE_REC_EC" -eq 6 ]] && echo "$CLOSE_REC" | grep -qi "RECORDING_REQUIRED" \
+  && ok "github_close_issue blocks without recording_attached" \
+  || no "github_close_issue must exit 6 for missing recording (got ec=$CLOSE_REC_EC: $CLOSE_REC)"
+./scripts/factory_log.sh "$GH_SLUG" "${GH_SLUG}#88" dod_check verdict=DONE two_pass=true canonical_source=true buildid_gate=MATCH recording_attached=true feature_steps_executed=true openspec_read=true verdict_review=pass smoke_pack=pass >/dev/null
+python3 scripts/recording_require.py --project "projects/$GH_SLUG" --key "${GH_SLUG}#88" >/dev/null \
+  && ok "recording_require OK after dod_check recording_attached=true" \
+  || no "recording_require should pass with ledger"
 grep_ok "smoke_pack" projects/_template/factory/schema.md "template schema documents smoke_pack"
 grep_ok "qa_scope.sh" .cursor/skills/qa-loop/SKILL.md "qa-loop skill references qa_scope.sh"
 grep_ok "github_create_issue" .cursor/skills/qa-loop/SKILL.md "qa-loop documents github_create_issue"
