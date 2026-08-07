@@ -33,8 +33,8 @@ when no product behaviour was judged — still prefer a one-line skip note.
 5. **PASS risk** — would a human reject Done? (missing edge, wrong oracle, UI-only agreement).
 6. **FAIL/RETURN risk** — is this `works-as-specified`? Is handoff repro + OpenSpec quote enough for Hephaestus?
 7. **Labels** — `impl-qa` not closed with SKIP_DEV; V/T not left open on FAIL.
-8. **Smoke pack** — when `automation/specs/acceptance-smoke.spec.js` (or `SMOKE_PACK`) exists
-   (e.g. Pantheon), require green STG smoke + ledger `smoke_pack=pass` before Done.
+8. **Smoke pack** — when `automation/specs/acceptance-smoke.spec.js` (or `SMOKE_PACK`) exists,
+   require green STG smoke + ledger `smoke_pack=pass` before Done.
 
 ## Output artifact
 
